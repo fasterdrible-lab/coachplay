@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  player_free
+  player_pro
+  player_premium
+  support
+}
+
+enum UserStatus {
+  active
+  inactive
+  blocked
+}
+
+enum PlanStatus {
+  active
+  inactive
+}
+
+enum SubscriptionStatus {
+  active
+  expired
+  cancelled
+}
+
+enum MatchStatus {
+  pending
+  processing
+  analyzed
+  failed
+}
+
+enum ProcessingStatus {
+  pending
+  processing
+  done
+  failed
+}
+
+enum AIAnalysisStatus {
+  pending
+  processing
+  done
+  failed
+}
+
+enum ErrorSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  role         UserRole   @default(player_free)
+  status       UserStatus @default(active)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  deletedAt     DateTime?  @map("deleted_at")
+  loginAttempts Int        @default(0) @map("login_attempts")
+  lockedUntil   DateTime?  @map("locked_until")
+
+  preferences   UserPreferences?
+  subscription  Subscription?
+  matches       Match[]
+  usageLogs     UsageLog[]
+  auditLogs     AuditLog[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+model UserPreferences {
+  id            String   @id @default(cuid())
+  userId        String   @unique @map("user_id")
+  feedbackLevel String   @default("normal") @map("feedback_level")
+  voiceEnabled  Boolean  @default(false) @map("voice_enabled")
+  language      String   @default("pt-BR")
+  favoriteMode  String?  @map("favorite_mode")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Plan {
+  id                   String     @id @default(cuid())
+  name                 String
+  monthlyAnalysisLimit Int        @map("monthly_analysis_limit")
+  maxVideoMinutes      Int        @map("max_video_minutes")
+  liveFeedbackEnabled  Boolean    @default(false) @map("live_feedback_enabled")
+  price                Decimal    @db.Decimal(10, 2)
+  status               PlanStatus @default(active)
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  userId    String             @unique @map("user_id")
+  planId    String             @map("plan_id")
+  status    SubscriptionStatus @default(active)
+  startedAt DateTime           @map("started_at")
+  expiresAt DateTime?          @map("expires_at")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Match {
+  id            String      @id @default(cuid())
+  userId        String      @map("user_id")
+  title         String?
+  gameMode      String?     @map("game_mode")
+  platform      String      @default("xbox")
+  matchDate     DateTime?   @map("match_date")
+  scoreUser     Int?        @map("score_user")
+  scoreOpponent Int?        @map("score_opponent")
+  status        MatchStatus @default(pending)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  deletedAt     DateTime?   @map("deleted_at")
+
+  user       User            @relation(fields: [userId], references: [id])
+  video      MatchVideo?
+  gameEvents GameEvent[]
+  errors     DetectedError[]
+  analysis   AIAnalysis?
+  report     MatchReport?
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("matches")
+}
+
+model MatchVideo {
+  id               String          @id @default(cuid())
+  matchId          String          @unique @map("match_id")
+  fileUrl          String          @map("file_url")
+  fileName         String          @map("file_name")
+  fileSize         BigInt          @map("file_size")
+  durationSeconds  Int?            @map("duration_seconds")
+  format           String
+  processingStatus ProcessingStatus @default(pending) @map("processing_status")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId])
+  @@index([processingStatus])
+  @@map("match_videos")
+}
+
+model GameEvent {
+  id             String   @id @default(cuid())
+  matchId        String   @map("match_id")
+  eventType      String   @map("event_type")
+  category       String
+  timestampStart Int      @map("timestamp_start")
+  timestampEnd   Int?     @map("timestamp_end")
+  description    String?
+  confidence     Float?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  match  Match           @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  errors DetectedError[]
+
+  @@index([matchId])
+  @@map("game_events")
+}
+
+model DetectedError {
+  id          String        @id @default(cuid())
+  matchId     String        @map("match_id")
+  eventId     String?       @map("event_id")
+  errorType   String        @map("error_type")
+  category    String
+  severity    ErrorSeverity @default(medium)
+  description String
+  suggestion  String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  match Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  event GameEvent? @relation(fields: [eventId], references: [id])
+
+  @@index([matchId])
+  @@map("detected_errors")
+}
+
+model AIAnalysis {
+  id            String           @id @default(cuid())
+  matchId       String           @unique @map("match_id")
+  modelUsed     String           @map("model_used")
+  promptVersion String           @map("prompt_version")
+  rawResponse   String?          @map("raw_response") @db.Text
+  summary       String?          @db.Text
+  costEstimate  Decimal?         @map("cost_estimate") @db.Decimal(10, 6)
+  status        AIAnalysisStatus @default(pending)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId])
+  @@index([status])
+  @@map("ai_analyses")
+}
+
+model MatchReport {
+  id             String   @id @default(cuid())
+  matchId        String   @unique @map("match_id")
+  overallScore   Float?   @map("overall_score")
+  attackScore    Float?   @map("attack_score")
+  defenseScore   Float?   @map("defense_score")
+  passingScore   Float?   @map("passing_score")
+  decisionScore  Float?   @map("decision_score")
+  mainProblem    String?  @map("main_problem")
+  recommendation String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId])
+  @@map("match_reports")
+}
+
+model UsageLog {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  amountUsed   Float    @default(1) @map("amount_used")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("usage_logs")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  module    String
+  action    String
+  ipAddress String?  @map("ip_address")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
