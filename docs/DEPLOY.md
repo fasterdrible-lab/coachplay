@@ -4,6 +4,13 @@ Guia passo a passo para colocar o Coach Play em produção em um VPS (Ubuntu 22.
 ou Debian 12), usando Docker Compose, Nginx como reverse proxy, TLS via
 Let's Encrypt e backup automático do PostgreSQL.
 
+> **Por que não Vercel para a API:** `apps/api` roda um worker BullMQ de longa duração,
+> spawna processos FFmpeg e grava vídeos no disco local — nada disso funciona no modelo
+> serverless do Vercel (funções sem estado, sem processo persistente, filesystem
+> efêmero). O Vercel é uma boa opção para `apps/web` (Next.js), mas a API precisa de um
+> host com processo persistente — VPS via Docker Compose (este guia) ou qualquer
+> provedor equivalente (Railway, Render, Fly.io etc.).
+
 Pré-requisitos no VPS:
 - Docker Engine + Docker Compose plugin (`docker compose version`)
 - Domínio (`DOMAIN` no `.env`) já apontando via DNS (registro A) para o IP do VPS
