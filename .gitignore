@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment — NUNCA commitar
+.env
+.env.local
+.env.*.local
+
+# Uploads de vídeo
+uploads/
+
+# Certificados TLS e desafios ACME emitidos em produção — nunca commitar
+deploy/certbot/conf/
+deploy/certbot/www/
+deploy/nginx/conf.d/
+
+# Backups de banco gerados no VPS
+backups/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Configuração local do Claude Code — histórico de comandos, não é config de time
+.claude/
+
+# Testing
+coverage/
+.nyc_output/
+
+# TypeScript build info
+*.tsbuildinfo

@@ -1,5 +1,171 @@
 # Changelog — Coach Play
 
+## [0.28.0] — 2026-07-17
+
+### Added
+- **Módulo administrador completo** (backend + frontend), substituindo os 4 stubs deixados na Fase 7:
+  - `GET /api/v1/audit-logs` — lista paginada de logs de auditoria com filtro por módulo/ação (`AuditLogsController`, admin-only)
+  - `GET /api/v1/admin/overview` — agregados de usuários (total/ativos/bloqueados/inativos), partidas (total/analisadas/processando/falha/aguardando), custo e contagem de análises de IA concluídas, e os 8 eventos de auditoria mais recentes (`AdminModule` novo)
+  - `GET /api/v1/admin/usage` — consumo e custo estimado de IA por usuário, paginado (agregação em memória via `match.userId`, já que `AIAnalysis` não tem `userId` direto)
+  - `(admin)/admin/page.tsx` — Dashboard Admin com os cards acima + lista de atividade recente
+  - `(admin)/admin/users/page.tsx` — tabela de usuários com busca, filtro por status e ação de bloquear/ativar (`PATCH /users/:id/status`)
+  - `(admin)/admin/logs/page.tsx` — tabela de auditoria com filtro por módulo, paginação e detalhe expansível do `metadata` de cada evento
+  - `(admin)/admin/usage/page.tsx` — cards de custo total/médio + tabela de consumo por usuário
+- 2 novas suites de teste (`admin.service.spec.ts`, `audit-logs.service.spec.ts`) — 9 testes cobrindo agregação de overview/usage e paginação/filtro de logs
+
+### Notes
+- Todas as rotas novas usam `@Roles('admin')`, testado manualmente com um usuário `player_free` recebendo 403
+- Ação de bloquear/ativar testada de ponta a ponta (clique → persistência confirmada após reload → reversão)
+
+---
+
+## [0.27.0] — 2026-07-17
+
+### Added
+- Identidade visual NEX-ALS ("Dark Luxury UI") aplicada em todo o frontend e no manual do usuário:
+  - `tailwind.config.ts` — tokens de cor (`ink`, `ink2`, `gold`/`gold-bright`/`gold-dim`, `violet`), gradiente `bg-luxury-radial` e `shadow-gold`
+  - `layout.tsx` — tipografia trocada de Inter isolado para o par **Sora** (display, headings/marca) + **Inter** (corpo), via `next/font/google` com CSS variables
+  - `globals.css` — glow ambiente dourado/violeta fixo atrás do conteúdo (elemento `fixed`, não `background-attachment: fixed` — mais estável entre engines)
+  - `manual.html` — retrabalhado com a mesma paleta, mantido como tema único (dark luxury não tem variante clara)
+- Reestilizadas todas as ~20 telas do app (auth, dashboard, partidas, evolução, plano, admin, componentes `Button`/`Input`/`Sidebar`): fundo quase-preto, cards em vidro (`bg-ink2/60` + `backdrop-blur`), bordas `white/8%`, acento dourado para ações primárias e navegação ativa, violeta para a seção "Administração"
+- Cores semânticas de nota/status (verde/amarelo/vermelho) retonalizadas para os tons joia do manual (`#6fcf97`/`#e0954a`/`#e2718a`), mantidas semanticamente distintas do dourado de marca
+
+### Fixed
+- Corrigidas classes Tailwind malformadas geradas por uma substituição em lote (`bg-blue-600/15` virando um gradiente inválido em `matches/new`; `hover:bg-gray-800/50` com sufixo de opacidade duplicado)
+
+### Notes
+- `next build` e `next dev` não devem rodar simultaneamente no mesmo diretório — ambos compartilham `.next` e um `build` no meio de uma sessão de `dev` corrompe o cache do dev server (exigiu limpar `.next` e reiniciar)
+
+---
+
+## [0.26.3] — 2026-07-16
+
+### Added
+- `apps/web/public/manual.html` — manual do usuário completo e ilustrado (capturas reais de cada tela), servido como página estática pela própria aplicação
+- Item **Manual** na barra lateral (`components/layout/sidebar.tsx`), entre "Meu Plano" e a seção de administração, abrindo o manual em nova aba — visível para qualquer usuário autenticado
+
+---
+
+## [0.26.2] — 2026-07-16
+
+### Fixed
+- **Crítico** — `(dashboard)/evolution/page.tsx` quebrava com `TypeError: Cannot read properties of undefined` sempre que havia pelo menos uma partida analisada. A causa: `prevInTime?.overallScore !== null` usa optional chaining só na leitura da propriedade — quando `prevInTime` é `undefined` (última posição da lista invertida), a expressão inteira avalia para `undefined !== null` (`true`), entrando no branch que acessa `prevInTime.overallScore` sem `?.` e derrubando a página. Corrigido nos dois pontos idênticos do arquivo (`Tendência por Partida` e a tabela de `Comparação de Partidas`) verificando a existência de `prevInTime` explicitamente antes de acessar a propriedade
+- Encontrado ao gerar uma partida real de teste (vídeo sintético via FFmpeg) para popular o manual do usuário com capturas de tela reais — nenhum teste automatizado ou execução anterior do app tinha exercitado a tela de Evolução com dados de partida de fato
+
+---
+
+## [0.26.1] — 2026-07-16
+
+### Fixed
+- **Crítico** — o cookie `refresh_token` era emitido com `path: '/api/v1/auth'`, então o navegador nunca o enviava em navegações para `/dashboard` e demais rotas protegidas (só em chamadas de volta para `/api/v1/auth/*`). Isso fazia `middleware.ts` sempre concluir "sem sessão" e redirecionar de volta para `/login` mesmo logo após um login/registro bem-sucedido — em qualquer ambiente, não só local. Corrigido para `path: '/'` em `apps/api/src/modules/auth/auth.controller.ts`
+- Encontrado e confirmado ao rodar a aplicação localmente pela primeira vez de ponta a ponta (API + frontend + Postgres/Redis reais) com um navegador real — nenhum teste automatizado existente cobria esse caminho, já que é puramente um efeito do escopo de cookie no navegador
+
+---
+
+## [0.26.0] — 2026-07-16
+
+### Added
+- `apps/api/Dockerfile` — build multi-stage de produção (Debian `bookworm-slim`; Alpine/musl é incompatível com os binários do `@ffmpeg-installer/ffmpeg`), com estágios `build` → `migrator` (mantém o Prisma CLI para `migrate deploy`/`db seed`) e `pruned`/`production` (`npm prune --omit=dev`)
+- `apps/web/Dockerfile` — build multi-stage com `output: 'standalone'` do Next.js (Alpine)
+- `docker-compose.prod.yml` — stack de produção: postgres/redis sem porta exposta ao host, `restart: unless-stopped`, serviço `migrate` sob demanda (`profiles: [tools]`), `nginx` (reverse proxy + TLS) e `certbot` (emissão/renovação automática)
+- `deploy/nginx/coachplay.conf.template` — reverse proxy (`/` → web, `/api/` e `/uploads/` → api), redirect HTTP→HTTPS, `client_max_body_size 550M`
+- `deploy/certbot/init-letsencrypt.sh` — bootstrap do primeiro certificado Let's Encrypt (dummy cert → nginx → cert real via webroot)
+- `deploy/backup/backup-postgres.sh` — backup automático do PostgreSQL (`pg_dump` + gzip + rotação por `BACKUP_RETENTION_DAYS`), agendável via cron
+- `docs/DEPLOY.md` — runbook completo de deploy em VPS
+- `apps/api/prisma/migrations/20260716152320_init` — primeira migration Prisma do projeto
+- `.dockerignore` (raiz) e variáveis de deploy (`DOMAIN`, `LETSENCRYPT_EMAIL`, `LETSENCRYPT_STAGING`, `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`) em `.env.example`
+
+### Fixed
+Três bugs pré-existentes, nunca detectados porque a API e o frontend nunca haviam sido buildados/executados de fato antes desta tarefa:
+- `apps/web/next.config.ts` não é suportado no Next.js 14.x (suporte a config em TypeScript só chegou no Next 15) — convertido para `next.config.mjs`
+- `/login` chamava `useSearchParams()` fora de um `<Suspense>`, o que quebra `next build` em produção — refatorado no mesmo padrão de `/reset-password` (componente interno + `<Suspense>` no export default)
+- Script `start` (`apps/api/package.json`) e o `CMD` do Dockerfile apontavam para `dist/main.js`; `nest build` gera `dist/src/main.js` — corrigido em ambos
+- Não existiam migrations do Prisma no repositório; sem elas `prisma migrate deploy` não criava nenhuma tabela em um banco novo — gerada a migration inicial
+
+### Notes
+- Build das imagens `api`/`web`/`migrator` e o fluxo completo (`migrate` → `api` → `web`) foram validados localmente com Docker: aplicação da migration, boot da API contra Postgres/Redis reais, registro + login via HTTP, e a página `/login` servida pelo container do frontend
+
+---
+
+## [0.25.0] — 2026-07-16
+
+### Fixed
+- **Crítico** — `ThrottlerGuard` nunca estava registrado como guard global em `app.module.ts` (apenas `ThrottlerModule.forRoot` era configurado); na prática nenhum `@Throttle` tinha efeito, incluindo o do login. Adicionado `{ provide: APP_GUARD, useClass: ThrottlerGuard }` antes de `JwtAuthGuard`/`RolesGuard`
+- `VideoProcessingWorker` — vídeo com duração acima de 90min (não reprocessável) agora é removido do disco via `unlink` em vez de permanecer indefinidamente após a falha
+- `AuditLogsService.log` — erro de compilação TS no campo `metadata` (`Prisma.InputJsonValue`), identificado ao rodar a suite de testes
+
+### Added
+- `@Throttle` em `POST /auth/register` (5/min), `POST /auth/forgot-password` (3/min) e `POST /auth/reset-password` (5/min) — mitigam criação em massa de contas, spam de e-mail e brute-force de token
+- `@Throttle` em `POST /matches/:id/video` (10/min) — endpoint caro (disco + fila) antes sujeito apenas ao limite default global
+- `throttler-wiring.integration.spec.ts` — sobe um app Nest real (porta efêmera) reproduzindo o wiring de `app.module.ts` e confirma HTTP 429 após exceder `@Throttle` (regressão para o bug acima)
+
+### Notes
+- Revisão de exposição de dados sensíveis (Task 7.3): confirmado que `passwordHash` nunca é retornado em nenhuma rota (todas as queries usam `select` explícito), `HttpExceptionFilter` não vaza stack trace, cookies de refresh usam `httpOnly`/`secure`/`sameSite: strict`, e `assertOwner`/`assertCanAccess` cobrem matches e users — nenhuma mudança de código necessária nesse ponto
+- Validação de upload (formato/tamanho/duração) já cobria os 3 critérios da Task 7.3; único ajuste foi a limpeza do arquivo em disco quando a duração excede o limite
+
+---
+
+## [0.24.0] — 2026-07-16
+
+### Added
+- Testes unitários (Jest) cobrindo os critérios da Task 7.2:
+  - `shared/guards/jwt-auth.guard.spec.ts` — rota pública ignora auth; sem token/token inválido lança `UnauthorizedException`
+  - `shared/guards/roles.guard.spec.ts` — admin acessa rota restrita, jogador recebe `ForbiddenException`
+  - `modules/matches/matches.service.spec.ts` — usuário não vê/edita partida de outro usuário (`assertOwner`)
+  - `modules/matches/video.config.spec.ts` — `videoFileFilter` aceita MP4/MOV/AVI e rejeita outros formatos
+  - `modules/plans/guards/analysis-limit.guard.spec.ts` — HTTP 402 quando o plano Free atinge o limite mensal; libera abaixo do limite
+  - `modules/ai-coach/ai-coach.service.spec.ts` — fallback Claude → GPT-4o quando Claude falha; `AIAnalysis.status = failed` quando ambos falham
+
+### Fixed
+- `AuditLogsService.log` — erro de compilação TS no campo `metadata` (Prisma `Json` não aceitava `Record<string, unknown>` diretamente); corrigido com cast para `Prisma.InputJsonValue`
+
+---
+
+## [0.23.0] — 2026-07-07
+
+### Added
+- `AuditLogsService.log(entry)` — grava eventos em `AuditLog` (userId?, module, action, ipAddress?, metadata?); best-effort, nunca derruba o fluxo principal em caso de falha
+- `AuditLogsModule` agora `@Global` (mesmo padrão do `MailModule`), com `AuditLogsService` como provider/export
+
+### Changed
+- `AuthController` — `register`/`login` passam a logar `auth.register`/`auth.login` no sucesso e `auth.register_failed`/`auth.login_failed` (com IP e motivo) no erro; `logout` loga `auth.logout`
+- `AuthService.register` — loga `plans.plan_assigned` ao vincular o plano Free na criação da conta (cobre "mudança de plano" no único ponto do sistema que atribui um plano hoje)
+- `MatchesService.uploadVideo` — loga `matches.video_upload` (matchId, nome e tamanho do arquivo) após enfileirar o job de processamento
+- `VideoProcessingWorker` — loga `game-analysis.analysis_completed` ao concluir a análise com sucesso e `video-processing.processing_failed` (matchId, mensagem de erro, tentativa) quando o job falha
+- `AuthModule`, `MatchesModule`, `VideoCaptureModule` — importam `AuditLogsModule` explicitamente
+
+### Notes
+- Não existe hoje endpoint de upgrade/downgrade de assinatura — a auditoria de "mudança de plano" cobre apenas a atribuição inicial do plano Free no cadastro. Quando um fluxo de troca de plano for implementado, deverá chamar `AuditLogsService.log` com o mesmo padrão (`module: 'plans'`)
+
+---
+
+## [0.22.0] — 2026-07-07
+
+### Added
+- `(dashboard)/plan/page.tsx` — tela "Meu Plano" completa substituindo stub:
+  - Card do plano atual com nome, preço formatado e badge de status da assinatura
+  - Barra de progresso de consumo mensal (`analysesThisMonth / limit`) com cor semântica e aviso quando o limite é atingido
+  - Cards de detalhes do plano: limite mensal de análises, duração máxima de vídeo, feedback ao vivo
+  - Bloco de datas: início da assinatura e renovação (`expiresAt`), com fallback para planos sem data de expiração
+  - Seção "Planos disponíveis" listando `GET /plans` com destaque no plano atual
+  - 2 fetches paralelos via `Promise.allSettled`: `/subscriptions/me` + `/plans`
+
+---
+
+## [0.21.0] — 2026-07-07
+
+### Added
+- `PlansService.registerAnalysisUsage(matchId)` — registra 1 unidade de consumo em `UsageLog` (action `video_analysis`, resourceType `match`, resourceId `matchId`) a cada análise concluída
+- `PlansService.countAnalysesThisMonth(userId)` — conta o consumo do mês corrente a partir do `UsageLog`, substituindo a contagem anterior via `Match.count`
+
+### Changed
+- `VideoProcessingWorker` — novo passo 5.1: chama `registerAnalysisUsage(matchId)` logo após `GameAnalysisService.analyzeMatch` marcar a partida como `analyzed`
+- `AnalysisLimitGuard` — agora usa `PlansService.countAnalysesThisMonth()` em vez de duplicar a query de contagem; continua lançando HTTP 402 com detalhes de plano/limite quando o consumo mensal é atingido
+- `PlansService.getMySubscription()` — reutiliza `countAnalysesThisMonth()` para manter o mesmo critério de consumo exibido em `/subscriptions/me`
+- `VideoCaptureModule` — importa `PlansModule` para injetar `PlansService` no `VideoProcessingWorker`
+
+---
+
 ## [0.20.0] — 2026-06-26
 
 ### Added

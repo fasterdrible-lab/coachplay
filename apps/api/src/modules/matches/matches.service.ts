@@ -13,6 +13,7 @@ import {
   VIDEO_PROCESSING_QUEUE,
   VideoProcessingJobData,
 } from '../video-capture/video-processing.constants';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 const LIST_SELECT = {
   id: true,
@@ -91,6 +92,7 @@ export class MatchesService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(VIDEO_PROCESSING_QUEUE) private readonly videoQueue: Queue,
+    private readonly auditLogs: AuditLogsService,
   ) {}
 
   async create(dto: CreateMatchDto, currentUser: AuthUser) {
@@ -210,6 +212,13 @@ export class MatchesService {
       { matchId: id, videoPath } satisfies VideoProcessingJobData,
       { attempts: 3, backoff: { type: 'exponential', delay: 5_000 } },
     );
+
+    await this.auditLogs.log({
+      userId: currentUser.id,
+      module: 'matches',
+      action: 'video_upload',
+      metadata: { matchId: id, fileName: file.originalname, fileSize: file.size },
+    });
 
     return { matchId: id, fileUrl, queued: true };
   }

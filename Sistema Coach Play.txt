@@ -1,0 +1,876 @@
+Sistema: Coach Play
+1. Objetivo da aplicação
+
+Criar uma aplicação chamada Coach Play, uma plataforma de análise de partidas de EA FC para jogadores de Xbox, com foco em identificar erros, padrões de jogo e oportunidades de melhoria.
+
+A aplicação deverá permitir que o usuário envie ou capture partidas, receba análise da IA e acompanhe sua evolução como jogador.
+
+Dor principal
+
+O jogador sabe que está perdendo, errando passes, sofrendo gols ou tomando contra-ataques, mas não consegue identificar claramente quais erros está cometendo.
+
+O Coach Play resolve isso funcionando como um treinador digital, analisando a partida e explicando os erros de forma simples.
+
+Público-alvo
+Jogadores casuais de EA FC.
+Jogadores competitivos.
+Usuários de Xbox.
+Pessoas que querem melhorar no jogo.
+Criadores de conteúdo gamer.
+Pequenos times ou comunidades de eSports.
+2. Domínio principal
+
+O domínio principal é:
+
+Análise inteligente de desempenho em partidas de futebol digital.
+
+Em linguagem simples:
+
+O sistema assiste à partida do jogador, identifica comportamentos ruins, mostra onde ele errou e sugere como melhorar.
+
+Problemas reais do domínio
+O jogador não sabe por que perdeu.
+O jogador repete os mesmos erros sem perceber.
+O jogador não sabe se o problema é ataque, defesa, passe, marcação ou tomada de decisão.
+Durante a partida, o jogador não consegue analisar tudo.
+Depois do jogo, o jogador esquece os lances importantes.
+Não existe um “técnico particular” acessível para jogadores comuns.
+3. Subdomínios
+Subdomínio	Responsabilidade	Dados principais	Relações
+Usuários	Gerenciar contas e acesso	Nome, e-mail, senha, perfil, plano	Assinaturas, partidas, relatórios
+Autenticação	Login, cadastro e recuperação de senha	Token, senha, sessão	Usuários, permissões
+Partidas	Registrar partidas jogadas	Data, placar, modo, vídeo, status	Análises, relatórios
+Captura de Vídeo	Receber vídeo gravado ou captura via Remote Play	Arquivo, fonte, duração, qualidade	Partidas, IA
+Análise de Jogo	Identificar erros e eventos da partida	Eventos, erros, padrões, tempo do lance	IA, relatórios
+Feedback ao Jogador	Gerar dicas simples e úteis	Dica, momento, gravidade, categoria	Análise, IA
+Relatórios	Exibir resumo da evolução	Notas, estatísticas, histórico	Partidas, usuários
+IA	Interpretar vídeo e gerar recomendações	Prompts, modelos, respostas, custo	Análise, feedback
+Planos e Assinaturas	Controlar limite de uso	Plano, limite, vencimento, consumo	Usuários, pagamentos
+Logs e Auditoria	Registrar ações importantes	Usuário, ação, data, módulo	Todos os módulos
+Configurações	Gerenciar preferências do usuário	Voz, nível de feedback, idioma, modo	Usuários, IA
+4. Contextos delimitados / módulos
+Módulo: Auth
+
+Responsabilidade: login, cadastro, recuperação de senha e controle de sessão.
+
+Entidades:
+
+UserCredential
+Session
+PasswordResetToken
+
+Casos de uso:
+
+Criar conta
+Fazer login
+Recuperar senha
+Redefinir senha
+Encerrar sessão
+
+Não deve fazer:
+
+Analisar partidas.
+Controlar planos.
+Gerar relatórios.
+Módulo: Users
+
+Responsabilidade: gerenciar os dados do jogador.
+
+Entidades:
+
+User
+UserProfile
+UserPreferences
+
+Casos de uso:
+
+Editar perfil
+Alterar preferências
+Consultar dados do usuário
+Inativar conta
+
+Não deve fazer:
+
+Validar senha diretamente.
+Processar vídeos.
+Gerar análise de IA.
+Módulo: Matches
+
+Responsabilidade: registrar cada partida enviada ou capturada.
+
+Entidades:
+
+Match
+MatchVideo
+MatchMetadata
+
+Casos de uso:
+
+Criar partida
+Enviar vídeo
+Listar partidas
+Ver detalhes da partida
+Excluir partida
+Atualizar status da análise
+
+Não deve fazer:
+
+Interpretar o vídeo.
+Gerar recomendações.
+Cobrar assinatura.
+Módulo: Video Capture
+
+Responsabilidade: lidar com upload, gravação e captura via Remote Play.
+
+Entidades:
+
+VideoSource
+VideoFile
+CaptureSession
+
+Casos de uso:
+
+Enviar vídeo gravado
+Iniciar captura de tela
+Encerrar captura
+Validar qualidade do vídeo
+Dividir vídeo em trechos
+
+Não deve fazer:
+
+Decidir se o jogador errou.
+Gerar relatório final.
+Módulo: Game Analysis
+
+Responsabilidade: transformar vídeo em eventos de jogo.
+
+Entidades:
+
+GameEvent
+DetectedError
+TacticalPattern
+PlayerBehavior
+
+Casos de uso:
+
+Detectar perda de bola
+Detectar chute ruim
+Detectar passe forçado
+Detectar contra-ataque sofrido
+Detectar erro defensivo
+Classificar erro por categoria
+
+Categorias iniciais:
+
+Defesa
+Ataque
+Passe
+Finalização
+Tomada de decisão
+Controle emocional
+Posicionamento
+Saída de bola
+Módulo: AI Coach
+
+Responsabilidade: transformar eventos técnicos em explicações simples.
+
+Entidades:
+
+AIAnalysis
+CoachFeedback
+PromptTemplate
+AIUsage
+
+Casos de uso:
+
+Gerar análise da partida
+Gerar resumo simples
+Gerar dicas de treino
+Gerar feedback por lance
+Gerar plano de evolução
+Controlar custo por análise
+
+Não deve fazer:
+
+Controlar login.
+Salvar vídeo bruto.
+Gerenciar assinatura diretamente.
+Módulo: Reports
+
+Responsabilidade: mostrar os resultados para o jogador.
+
+Entidades:
+
+MatchReport
+EvolutionReport
+ErrorSummary
+SkillScore
+
+Casos de uso:
+
+Gerar relatório pós-jogo
+Mostrar principais erros
+Mostrar evolução por período
+Comparar partidas
+Exibir nota por fundamento
+Módulo: Plans
+
+Responsabilidade: controlar limites de uso e planos.
+
+Entidades:
+
+Plan
+Subscription
+UsageLimit
+PaymentStatus
+
+Casos de uso:
+
+Ver plano atual
+Bloquear análise se limite acabar
+Registrar consumo
+Liberar recursos conforme plano
+5. Mapa de contexto
+Fornecedor	Consumidor	Dados fornecidos	Comunicação
+Users	Auth	ID, e-mail, status	Serviço interno
+Auth	Todos	Usuário autenticado	Middleware
+Matches	Video Capture	ID da partida	API interna
+Video Capture	Game Analysis	Vídeo ou trechos processados	Evento/fila
+Game Analysis	AI Coach	Eventos detectados	DTO público
+AI Coach	Reports	Recomendações e resumo	Evento
+Plans	Matches	Limite de análises	Serviço público
+Logs	Todos	Registro de ação	Evento
+Reports	Dashboard	Estatísticas consolidadas	Query pública
+
+Visão textual:
+
+Usuários → Autenticação
+Autenticação → Permissões
+Usuários → Partidas
+Partidas → Captura de Vídeo
+Captura de Vídeo → Análise de Jogo
+Análise de Jogo → IA Coach
+IA Coach → Relatórios
+Relatórios → Dashboard
+Planos → Limites de Uso
+Todos → Logs e Auditoria
+6. Linguagem ubíqua
+Termo	Significado
+Jogador	Usuário que joga EA FC e usa o sistema
+Partida	Jogo analisado pelo sistema
+Vídeo da partida	Gravação ou captura da gameplay
+Lance	Momento específico do jogo
+Erro	Ação ruim detectada pela IA
+Padrão de jogo	Comportamento repetido do jogador
+Feedback	Dica enviada ao jogador
+Relatório	Resumo da análise da partida
+Coach	IA que atua como treinador
+Análise pós-jogo	Avaliação feita depois da partida
+Feedback ao vivo	Dica durante a partida
+Remote Play	Forma de jogar/capturar Xbox pelo PC
+Plano	Pacote contratado pelo usuário
+Consumo	Quantidade de análises ou minutos usados
+7. Perfis de usuário
+Perfil	Permissões
+Administrador	Gerencia usuários, planos, configurações, logs e limites
+Jogador Free	Envia partidas com limite mensal e acessa relatório básico
+Jogador Pro	Tem mais análises, histórico e relatórios avançados
+Jogador Premium	Acessa feedback quase em tempo real e plano de evolução
+Suporte	Visualiza erros técnicos e ajuda usuários, sem acesso a dados sensíveis
+8. Funcionalidades da versão inicial
+Obrigatórias — MVP
+Cadastro de usuário.
+Login.
+Recuperação de senha.
+Dashboard inicial.
+Upload de vídeo da partida.
+Cadastro da partida.
+Processamento básico do vídeo.
+Análise pós-jogo com IA.
+Identificação de erros principais.
+Relatório simples da partida.
+Histórico de partidas.
+Controle de plano e limite de uso.
+Logs básicos.
+Tela de configurações.
+Painel administrativo simples.
+Funcionalidades futuras
+Captura via Remote Play.
+Feedback por voz durante a partida.
+Detecção automática de minimapa.
+Análise de posicionamento.
+Comparação com partidas anteriores.
+Ranking de evolução.
+Plano de treino semanal.
+Integração com pagamentos.
+App desktop para captura.
+App mobile.
+Comunidade de jogadores.
+Análise de partidas profissionais.
+Treinamento personalizado por estilo de jogo.
+9. Regras de negócio
+Regra	Descrição	Erro
+E-mail único	Não pode existir mais de uma conta com o mesmo e-mail	Este e-mail já está cadastrado
+Usuário inativo	Usuário inativo não pode acessar	Seu acesso está bloqueado
+Vídeo obrigatório	Toda análise precisa de um vídeo válido	Envie um vídeo da partida
+Formato válido	Aceitar apenas formatos permitidos	Formato de vídeo não suportado
+Limite do plano	Usuário não pode analisar acima do limite	Seu limite de análises acabou
+Análise em processamento	Não permitir duplicar análise da mesma partida	Esta partida já está sendo analisada
+IA indisponível	Usar API reserva em caso de falha	Estamos tentando outro serviço de IA
+Dados sensíveis	Nunca expor chave de API no frontend	Acesso negado
+Relatório privado	Jogador só vê suas próprias partidas	Você não tem permissão para acessar este relatório
+10. Estrutura recomendada do projeto
+src/
+  modules/
+    auth/
+      domain/
+      application/
+      infrastructure/
+      presentation/
+      published-language/
+
+    users/
+      domain/
+      application/
+      infrastructure/
+      presentation/
+      published-language/
+
+    matches/
+      domain/
+      application/
+      infrastructure/
+      presentation/
+      published-language/
+
+    video-capture/
+      domain/
+      application/
+      infrastructure/
+      presentation/
+      published-language/
+
+    game-analysis/
+      domain/
+      application/
+      infrastructure/
+      presentation/
+      published-language/
+
+    ai-coach/
+      domain/
+      application/
+      infrastructure/
+      presentation/
+      published-language/
+
+    reports/
+      domain/
+      application/
+      infrastructure/
+      presentation/
+      published-language/
+
+    plans/
+      domain/
+      application/
+      infrastructure/
+      presentation/
+      published-language/
+
+    audit-logs/
+      domain/
+      application/
+      infrastructure/
+      presentation/
+
+  shared/
+    database/
+    errors/
+    utils/
+    security/
+    validations/
+    events/
+    config/
+    storage/
+    queue/
+    logger/
+
+  app/
+    routes/
+    middlewares/
+    providers/
+11. Stack técnica recomendada
+Frontend
+Next.js
+TypeScript
+Tailwind CSS
+Shadcn/UI
+React Hook Form
+Zod
+Dashboard responsivo
+Backend
+Node.js
+NestJS
+TypeScript
+Clean Architecture
+Modular Monolith no início
+API REST
+WebSocket futuramente para feedback ao vivo
+Banco de dados
+PostgreSQL
+Prisma ORM
+Migrações versionadas
+Índices em usuário, partida, status e datas
+Processamento de vídeo
+FFmpeg
+OpenCV futuramente
+Extração de frames
+Armazenamento temporário
+Fila para análise
+IA
+Modelo multimodal para análise de imagens/vídeos.
+Modelo de texto para relatório final.
+Fallback entre APIs.
+Controle de custo por minuto analisado.
+Infraestrutura
+Docker
+VPS
+Nginx
+PostgreSQL
+Storage local ou S3 compatível
+Backup automático
+Logs
+Monitoramento
+12. Banco de dados inicial
+users
+id
+name
+email
+password_hash
+role
+status
+created_at
+updated_at
+deleted_at
+user_preferences
+id
+user_id
+feedback_level
+voice_enabled
+language
+favorite_mode
+created_at
+updated_at
+plans
+id
+name
+monthly_analysis_limit
+max_video_minutes
+live_feedback_enabled
+price
+status
+created_at
+updated_at
+subscriptions
+id
+user_id
+plan_id
+status
+started_at
+expires_at
+created_at
+updated_at
+matches
+id
+user_id
+title
+game_mode
+platform
+match_date
+score_user
+score_opponent
+status
+created_at
+updated_at
+deleted_at
+match_videos
+id
+match_id
+file_url
+file_name
+file_size
+duration_seconds
+format
+processing_status
+created_at
+updated_at
+game_events
+id
+match_id
+event_type
+category
+timestamp_start
+timestamp_end
+description
+confidence
+created_at
+detected_errors
+id
+match_id
+event_id
+error_type
+category
+severity
+description
+suggestion
+created_at
+ai_analyses
+id
+match_id
+model_used
+prompt_version
+raw_response
+summary
+cost_estimate
+status
+created_at
+updated_at
+match_reports
+id
+match_id
+overall_score
+attack_score
+defense_score
+passing_score
+decision_score
+main_problem
+recommendation
+created_at
+updated_at
+usage_logs
+id
+user_id
+action
+resource_type
+resource_id
+amount_used
+created_at
+audit_logs
+id
+user_id
+module
+action
+ip_address
+metadata
+created_at
+13. Rotas da API
+Auth
+POST /auth/register
+POST /auth/login
+POST /auth/forgot-password
+POST /auth/reset-password
+POST /auth/logout
+GET /auth/me
+Users
+GET /users
+GET /users/:id
+PUT /users/:id
+PATCH /users/:id/status
+DELETE /users/:id
+Matches
+GET /matches
+POST /matches
+GET /matches/:id
+PUT /matches/:id
+DELETE /matches/:id
+Videos
+POST /matches/:id/video
+GET /matches/:id/video
+DELETE /matches/:id/video
+POST /matches/:id/process-video
+Analysis
+POST /matches/:id/analyze
+GET /matches/:id/analysis
+GET /matches/:id/errors
+GET /matches/:id/events
+Reports
+GET /matches/:id/report
+GET /reports/evolution
+GET /reports/summary
+Plans
+GET /plans
+POST /plans
+PUT /plans/:id
+GET /subscriptions/me
+POST /subscriptions/change-plan
+Settings
+GET /settings
+PUT /settings
+Admin
+GET /admin/dashboard
+GET /admin/users
+GET /admin/logs
+GET /admin/usage
+14. IA dentro da aplicação
+Onde a IA será usada
+Análise de frames.
+Identificação de erros.
+Geração de relatório.
+Sugestão de treino.
+Feedback textual.
+Futuramente feedback por voz.
+Prompt base da IA Coach
+Você é um treinador especialista em EA FC.
+
+Analise os eventos detectados da partida e explique para o jogador:
+1. Quais foram os principais erros.
+2. Em que momento aconteceram.
+3. Qual categoria do erro: defesa, ataque, passe, finalização, tomada de decisão ou posicionamento.
+4. Por que esse erro prejudicou o jogador.
+5. Como ele pode corrigir isso na próxima partida.
+
+Use linguagem simples, direta e motivadora.
+Evite termos técnicos complexos.
+Não invente dados que não foram detectados.
+Se a análise for incerta, informe que é uma hipótese.
+Controle de custo
+Limitar minutos por plano.
+Processar vídeo em trechos.
+Analisar apenas momentos relevantes.
+Salvar resultado para não reprocessar.
+Registrar consumo por análise.
+Usar IA mais barata para resumo simples.
+Usar IA mais avançada apenas em lances críticos.
+Fallback de IA
+1. API principal de IA multimodal
+2. API secundária
+3. API reserva
+
+Se uma falhar:
+- registrar erro
+- tentar próxima
+- avisar usuário apenas se todas falharem
+15. UX/UI
+Telas principais
+Login
+Cadastro
+Recuperação de senha
+Dashboard
+Minhas partidas
+Enviar partida
+Detalhe da partida
+Relatório da partida
+Evolução
+Configurações
+Plano atual
+Administração
+Dashboard do jogador
+
+Cards principais:
+
+Partidas analisadas
+Erro mais frequente
+Nota média
+Evolução semanal
+Última partida
+Próxima recomendação de treino
+Tela do relatório
+
+Seções:
+
+Resultado da partida
+Nota geral
+Principais erros
+Lances críticos
+Pontos positivos
+O que treinar
+Resumo da IA Coach
+16. Componentes visuais
+Button
+Input
+Select
+Textarea
+Modal
+Table
+Card
+Badge
+Alert
+Toast
+Sidebar
+Header
+UploadBox
+VideoPreview
+MatchCard
+ScoreCard
+ErrorBadge
+ProgressBar
+ConfirmDialog
+LoadingState
+EmptyState
+17. Segurança
+
+Obrigatório:
+
+Senha com argon2 ou bcrypt.
+JWT com expiração.
+Refresh token seguro.
+Rate limit no login.
+Validação com Zod.
+Sanitização de inputs.
+Proteção contra SQL Injection via ORM.
+Controle de acesso por perfil.
+Rotas protegidas no frontend e backend.
+Chaves de IA apenas no backend.
+Logs de ações importantes.
+Bloqueio após muitas tentativas de login.
+Upload com validação de tipo e tamanho.
+Vídeos privados por usuário.
+Backup do banco.
+Tratamento seguro de erros.
+18. Logs e auditoria
+
+Eventos registrados:
+
+Login realizado.
+Tentativa de login inválida.
+Cadastro criado.
+Vídeo enviado.
+Análise iniciada.
+Análise finalizada.
+Erro de IA.
+Falha no processamento de vídeo.
+Relatório gerado.
+Plano alterado.
+Permissão alterada.
+Usuário bloqueado.
+19. Testes obrigatórios
+Usuário não acessa rota protegida sem login.
+Usuário não vê partida de outro usuário.
+Admin acessa painel administrativo.
+Jogador comum não acessa painel administrativo.
+Não cadastra e-mail duplicado.
+Upload rejeita arquivo inválido.
+Análise não inicia sem vídeo.
+Plano Free respeita limite.
+API de IA com falha aciona fallback.
+Relatório é gerado após análise.
+Dados sensíveis não aparecem na resposta.
+20. Ordem recomendada de implementação
+Fase 1 — Base
+Criar projeto backend.
+Criar projeto frontend.
+Configurar Docker.
+Configurar PostgreSQL.
+Configurar Prisma.
+Criar estrutura modular.
+Fase 2 — Autenticação
+Criar módulo Auth.
+Criar módulo Users.
+Criar login.
+Criar cadastro.
+Criar recuperação de senha.
+Criar proteção de rotas.
+Fase 3 — Partidas
+Criar módulo Matches.
+Criar cadastro de partida.
+Criar listagem de partidas.
+Criar upload de vídeo.
+Criar preview do vídeo.
+Fase 4 — Análise
+Criar extração de frames.
+Criar fila de processamento.
+Criar módulo Game Analysis.
+Criar integração com IA.
+Gerar análise inicial.
+Salvar eventos e erros.
+Fase 5 — Relatórios
+Criar módulo Reports.
+Criar relatório da partida.
+Criar dashboard.
+Criar evolução do jogador.
+Fase 6 — Planos
+Criar planos.
+Criar limites.
+Bloquear uso acima do plano.
+Registrar consumo.
+Fase 7 — Produção
+Criar logs.
+Criar testes.
+Melhorar UX.
+Revisar segurança.
+Fazer deploy.
+21. Primeiro MVP recomendado
+
+Eu recomendo começar com esta versão:
+
+Coach Play MVP — Análise Pós-Jogo
+
+Funciona assim:
+
+Usuário cria conta.
+Usuário envia vídeo da partida.
+Sistema processa o vídeo.
+IA analisa os principais momentos.
+Sistema gera relatório simples.
+Usuário vê seus erros e dicas.
+
+Essa versão já pode ser vendida, porque resolve a dor principal: saber onde está errando.
+
+Depois entramos no feedback em tempo real via Remote Play.
+
+22. Prompt para iniciar o desenvolvimento no Cursor, Claude Code ou Lovable
+Crie a aplicação Coach Play.
+
+Coach Play é uma plataforma SaaS para análise de partidas de EA FC, inicialmente para jogadores de Xbox. O objetivo é permitir que o usuário envie vídeos das partidas e receba uma análise feita por IA, identificando erros, padrões de jogo, pontos fortes e sugestões de melhoria.
+
+Siga arquitetura modular, Clean Architecture e Domain-Driven Design.
+
+Stack:
+- Frontend: Next.js, TypeScript, Tailwind CSS, Shadcn/UI
+- Backend: NestJS, TypeScript
+- Banco: PostgreSQL com Prisma ORM
+- Infraestrutura: Docker
+- Autenticação: JWT com refresh token seguro
+- Upload de vídeo: armazenamento local inicialmente, preparado para S3
+- IA: integração desacoplada com provider configurável
+- Fila: BullMQ ou equivalente para processamento assíncrono
+
+Crie os módulos:
+1. Auth
+2. Users
+3. Plans
+4. Matches
+5. Video Capture
+6. Game Analysis
+7. AI Coach
+8. Reports
+9. Audit Logs
+10. Settings
+
+Regras principais:
+- Não misturar responsabilidades entre módulos.
+- Não colocar regra de negócio em controllers.
+- Usar DTOs e validação.
+- Usar contratos públicos entre módulos.
+- Proteger rotas por perfil.
+- Nunca expor chaves de IA no frontend.
+- Registrar logs de ações importantes.
+- Implementar controle de limite por plano.
+- Upload deve validar tipo, tamanho e duração do vídeo.
+- Usuário só pode acessar suas próprias partidas.
+- Admin pode gerenciar usuários, planos e logs.
+
+Comece criando:
+1. Estrutura do projeto.
+2. Configuração do banco.
+3. Prisma schema inicial.
+4. Módulo Auth.
+5. Módulo Users.
+6. Layout inicial do frontend.
+7. Dashboard básico.
+8. Módulo Matches com upload de vídeo.
+
+Antes de gerar cada módulo, explique rapidamente a responsabilidade dele e depois gere o código.
+
+Esse é o documento base do sistema Coach Play. O próximo passo ideal é gerar o PRD completo ou já transformar isso em tarefas de desenvolvimento por sprint.

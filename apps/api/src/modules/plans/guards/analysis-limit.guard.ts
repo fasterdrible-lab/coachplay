@@ -7,10 +7,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../shared/database/prisma.service';
 import { AuthUser } from '../../../shared/types/auth-user.type';
+import { PlansService } from '../plans.service';
 
 @Injectable()
 export class AnalysisLimitGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly plansService: PlansService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -28,16 +32,7 @@ export class AnalysisLimitGuard implements CanActivate {
       );
     }
 
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const analysesThisMonth = await this.prisma.match.count({
-      where: {
-        userId: user.id,
-        status: 'analyzed',
-        createdAt: { gte: startOfMonth },
-      },
-    });
+    const analysesThisMonth = await this.plansService.countAnalysesThisMonth(user.id);
 
     if (analysesThisMonth >= subscription.plan.monthlyAnalysisLimit) {
       throw new HttpException(

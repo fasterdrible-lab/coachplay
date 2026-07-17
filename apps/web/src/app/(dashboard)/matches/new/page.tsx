@@ -171,11 +171,11 @@ export default function NewMatchPage() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-500/15">
-            <CheckCircle2 className="h-8 w-8 text-green-400" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#6fcf97]/15">
+            <CheckCircle2 className="h-8 w-8 text-[#6fcf97]" />
           </div>
-          <p className="text-xl font-semibold text-white">Partida criada!</p>
-          <p className="text-sm text-gray-500">Redirecionando para suas partidas...</p>
+          <p className="text-xl font-semibold text-[#f8f8fc]">Partida criada!</p>
+          <p className="text-sm text-[#f8f8fc]/45">Redirecionando para suas partidas...</p>
         </div>
       </div>
     );
@@ -187,23 +187,23 @@ export default function NewMatchPage() {
       <div className="flex h-full items-center justify-center">
         <div className="w-full max-w-sm px-4">
           <div className="flex flex-col items-center gap-6 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600/15">
-              <UploadCloud className="h-8 w-8 text-blue-400" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold/15">
+              <UploadCloud className="h-8 w-8 text-gold-bright" />
             </div>
             <div className="w-full">
-              <p className="mb-4 text-base font-semibold text-white">Enviando vídeo</p>
-              <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-gray-800">
+              <p className="mb-4 text-base font-semibold text-[#f8f8fc]">Enviando vídeo</p>
+              <div className="mb-2 h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
                 <div
-                  className="h-full rounded-full bg-blue-500 transition-all duration-200"
+                  className="h-full rounded-full bg-gold transition-all duration-200"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-[#f8f8fc]/45">
                 <span>{videoFile?.name}</span>
                 <span>{uploadProgress}%</span>
               </div>
             </div>
-            <p className="text-xs text-gray-600">Não feche ou atualize esta página</p>
+            <p className="text-xs text-[#f8f8fc]/35">Não feche ou atualize esta página</p>
           </div>
         </div>
       </div>
@@ -215,34 +215,34 @@ export default function NewMatchPage() {
     <div className="mx-auto max-w-2xl p-6">
       {/* Header */}
       <div className="mb-8 flex items-center gap-4">
-        <Link href="/matches" className="text-gray-400 hover:text-white transition-colors">
+        <Link href="/matches" className="text-[#f8f8fc]/55 hover:text-[#f8f8fc] transition-colors">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-white">Nova Partida</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Preencha os dados e envie o vídeo para análise</p>
+          <h1 className="text-2xl font-bold text-[#f8f8fc]">Nova Partida</h1>
+          <p className="mt-0.5 text-sm text-[#f8f8fc]/45">Preencha os dados e envie o vídeo para análise</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
         {/* Error banner */}
         {error && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
-            <p className="text-sm text-red-400">{error}</p>
+          <div className="rounded-lg border border-[#e2718a]/30 bg-[#e2718a]/10 px-4 py-3">
+            <p className="text-sm text-[#e2718a]">{error}</p>
           </div>
         )}
 
         {/* Section: Metadados */}
-        <div className="rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-gray-400">
+        <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-6">
+          <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-[#f8f8fc]/55">
             Dados da partida
           </h2>
 
           <div className="space-y-4">
             {/* Title */}
             <div>
-              <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-gray-300">
-                Título <span className="text-gray-600">(opcional)</span>
+              <label htmlFor="title" className="mb-1.5 block text-sm font-medium text-[#f8f8fc]/80">
+                Título <span className="text-[#f8f8fc]/35">(opcional)</span>
               </label>
               <input
                 id="title"
@@ -251,20 +251,20 @@ export default function NewMatchPage() {
                 placeholder="Ex: Rivals Div 2 — quarta-feira"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2.5 text-sm text-[#f8f8fc] placeholder-white/30 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/50"
               />
             </div>
 
             {/* Game mode */}
             <div>
-              <label htmlFor="gameMode" className="mb-1.5 block text-sm font-medium text-gray-300">
-                Modo de jogo <span className="text-gray-600">(opcional)</span>
+              <label htmlFor="gameMode" className="mb-1.5 block text-sm font-medium text-[#f8f8fc]/80">
+                Modo de jogo <span className="text-[#f8f8fc]/35">(opcional)</span>
               </label>
               <select
                 id="gameMode"
                 value={gameMode}
                 onChange={(e) => setGameMode(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full appearance-none rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2.5 text-sm text-[#f8f8fc] focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/50"
               >
                 <option value="">Selecionar modo</option>
                 {GAME_MODES.map((m) => (
@@ -277,8 +277,8 @@ export default function NewMatchPage() {
 
             {/* Date */}
             <div>
-              <label htmlFor="matchDate" className="mb-1.5 block text-sm font-medium text-gray-300">
-                Data da partida <span className="text-gray-600">(opcional)</span>
+              <label htmlFor="matchDate" className="mb-1.5 block text-sm font-medium text-[#f8f8fc]/80">
+                Data da partida <span className="text-[#f8f8fc]/35">(opcional)</span>
               </label>
               <input
                 id="matchDate"
@@ -286,18 +286,18 @@ export default function NewMatchPage() {
                 value={matchDate}
                 max={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setMatchDate(e.target.value)}
-                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 [color-scheme:dark]"
+                className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2.5 text-sm text-[#f8f8fc] focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/50 [color-scheme:dark]"
               />
             </div>
 
             {/* Score */}
             <div>
-              <p className="mb-1.5 text-sm font-medium text-gray-300">
-                Placar <span className="text-gray-600">(opcional)</span>
+              <p className="mb-1.5 text-sm font-medium text-[#f8f8fc]/80">
+                Placar <span className="text-[#f8f8fc]/35">(opcional)</span>
               </p>
               <div className="flex items-center gap-3">
                 <div className="flex-1">
-                  <label htmlFor="scoreUser" className="mb-1 block text-xs text-gray-500">
+                  <label htmlFor="scoreUser" className="mb-1 block text-xs text-[#f8f8fc]/45">
                     Meus gols
                   </label>
                   <input
@@ -308,12 +308,12 @@ export default function NewMatchPage() {
                     placeholder="0"
                     value={scoreUser}
                     onChange={(e) => setScoreUser(e.target.value)}
-                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-center text-sm text-white placeholder-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2.5 text-center text-sm text-[#f8f8fc] placeholder-gray-600 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/50"
                   />
                 </div>
-                <span className="mt-5 text-lg font-bold text-gray-600">×</span>
+                <span className="mt-5 text-lg font-bold text-[#f8f8fc]/35">×</span>
                 <div className="flex-1">
-                  <label htmlFor="scoreOpponent" className="mb-1 block text-xs text-gray-500">
+                  <label htmlFor="scoreOpponent" className="mb-1 block text-xs text-[#f8f8fc]/45">
                     Gols do adversário
                   </label>
                   <input
@@ -324,7 +324,7 @@ export default function NewMatchPage() {
                     placeholder="0"
                     value={scoreOpponent}
                     onChange={(e) => setScoreOpponent(e.target.value)}
-                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-center text-sm text-white placeholder-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2.5 text-center text-sm text-[#f8f8fc] placeholder-gray-600 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/50"
                   />
                 </div>
               </div>
@@ -333,8 +333,8 @@ export default function NewMatchPage() {
         </div>
 
         {/* Section: Vídeo */}
-        <div className="rounded-xl border border-gray-800 bg-gray-900 p-6">
-          <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-gray-400">
+        <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-6">
+          <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-[#f8f8fc]/55">
             Vídeo da partida
           </h2>
 
@@ -351,17 +351,17 @@ export default function NewMatchPage() {
           />
 
           {videoFile ? (
-            <div className="flex items-center gap-3 rounded-xl border border-gray-700 bg-gray-800 px-4 py-3">
-              <FileVideo className="h-8 w-8 shrink-0 text-blue-400" />
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3">
+              <FileVideo className="h-8 w-8 shrink-0 text-gold-bright" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">{videoFile.name}</p>
-                <p className="text-xs text-gray-500">{formatBytes(videoFile.size)}</p>
+                <p className="truncate text-sm font-medium text-[#f8f8fc]">{videoFile.name}</p>
+                <p className="text-xs text-[#f8f8fc]/45">{formatBytes(videoFile.size)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setVideoFile(null)}
                 aria-label="Remover vídeo"
-                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-white"
+                className="rounded p-1 text-[#f8f8fc]/55 transition-colors hover:bg-white/[0.08] hover:text-[#f8f8fc]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -378,24 +378,24 @@ export default function NewMatchPage() {
               className={cn(
                 'flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 transition-colors select-none',
                 isDragging
-                  ? 'border-blue-500 bg-blue-500/10'
-                  : 'border-gray-700 hover:border-gray-600 hover:bg-gray-800/50',
+                  ? 'border-gold bg-gold/10'
+                  : 'border-white/10 hover:border-white/20 hover:bg-white/[0.03]',
               )}
             >
               <UploadCloud
                 className={cn(
                   'mb-3 h-10 w-10 transition-colors',
-                  isDragging ? 'text-blue-400' : 'text-gray-500',
+                  isDragging ? 'text-gold-bright' : 'text-[#f8f8fc]/45',
                 )}
               />
-              <p className="text-sm font-medium text-gray-300">Arraste o vídeo aqui</p>
-              <p className="mt-1 text-xs text-gray-500">ou clique para selecionar</p>
-              <p className="mt-3 text-xs text-gray-600">MP4, MOV ou AVI · máx. 500MB</p>
+              <p className="text-sm font-medium text-[#f8f8fc]/80">Arraste o vídeo aqui</p>
+              <p className="mt-1 text-xs text-[#f8f8fc]/45">ou clique para selecionar</p>
+              <p className="mt-3 text-xs text-[#f8f8fc]/35">MP4, MOV ou AVI · máx. 500MB</p>
             </div>
           )}
 
           {fileError && (
-            <p className="mt-2 text-xs text-red-400">{fileError}</p>
+            <p className="mt-2 text-xs text-[#e2718a]">{fileError}</p>
           )}
         </div>
 

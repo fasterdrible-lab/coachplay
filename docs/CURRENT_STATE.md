@@ -1,8 +1,8 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.20.0
-**Data:** 2026-06-26
-**Fase:** Fase 3 — Partidas (em andamento)
+**Versão:** V.0.28.0
+**Data:** 2026-07-17
+**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador
 
 ---
 
@@ -259,9 +259,96 @@
 
 ---
 
+### Task 6.2 — Controle de limite de uso
+- [x] `PlansService.registerAnalysisUsage(matchId)` — cria registro em `UsageLog` (action `video_analysis`, resourceType `match`, resourceId `matchId`, amountUsed default 1)
+- [x] `PlansService.countAnalysesThisMonth(userId)` — conta consumo do mês corrente a partir do `UsageLog` (substituiu a contagem por `Match.count`, agora `UsageLog` é a fonte única de verdade de consumo)
+- [x] `VideoProcessingWorker` — chama `registerAnalysisUsage(matchId)` logo após `GameAnalysisService.analyzeMatch` concluir (passo 5.1, quando `match.status` vira `analyzed`)
+- [x] `AnalysisLimitGuard` — passa a usar `PlansService.countAnalysesThisMonth()` em vez de duplicar a query; mantém HTTP 402 quando limite mensal é atingido
+- [x] `PlansService.getMySubscription()` — usa o mesmo `countAnalysesThisMonth()` para consistência entre guard e endpoint `/subscriptions/me`
+- [x] `VideoCaptureModule` — importa `PlansModule` para disponibilizar `PlansService` ao worker
+
+---
+
+### Task 6.3 — Tela de Plano atual (frontend)
+- [x] `(dashboard)/plan/page.tsx` — tela completa substituindo stub:
+  - Card do plano atual: nome, preço formatado (R$ ou "Grátis"), badge de status (active/expired/cancelled)
+  - Barra de progresso de consumo mensal (`analysesThisMonth / limit`) com cor semântica (verde/amarelo/vermelho) e aviso quando `limitReached`
+  - Cards de detalhes: limite mensal de análises, duração máxima de vídeo, disponibilidade de feedback ao vivo
+  - Bloco de datas: início da assinatura (`startedAt`) e renovação (`expiresAt`, com fallback "Sem data de renovação" para planos sem expiração)
+  - Seção "Planos disponíveis": lista os planos de `GET /plans` com destaque visual no plano atual
+  - 2 fetches paralelos via `Promise.allSettled`: `/subscriptions/me` + `/plans`; estado de erro dedicado se a assinatura não carregar
+
+---
+
+## Fase 6 concluída — todas as 3 tasks implementadas
+
+---
+
+### Task 7.1 — Logs e auditoria completos
+- [x] `AuditLogsService.log(entry)` — grava em `AuditLog` (userId?, module, action, ipAddress?, metadata?); best-effort (falha ao gravar não derruba o fluxo principal)
+- [x] `AuditLogsModule` marcado `@Global` (mesmo padrão do `MailModule`) — `AuditLogsService` disponível em qualquer módulo sem import extra, mas importado explicitamente em `AuthModule`, `MatchesModule` e `VideoCaptureModule` para manter a convenção do projeto
+- [x] **login** — `AuthController.login` loga `auth.login` em caso de sucesso e `auth.login_failed` (com IP e motivo) em caso de erro (senha inválida, conta bloqueada, etc.)
+- [x] **cadastro** — `AuthController.register` loga `auth.register` em caso de sucesso e `auth.register_failed` em caso de erro (ex.: e-mail duplicado)
+- [x] **logout** — `AuthController.logout` loga `auth.logout` com o usuário autenticado
+- [x] **upload** — `MatchesService.uploadVideo` loga `matches.video_upload` com matchId, nome e tamanho do arquivo
+- [x] **análise** — `VideoProcessingWorker` loga `game-analysis.analysis_completed` após a análise ser concluída com sucesso
+- [x] **erros** — `VideoProcessingWorker` loga `video-processing.processing_failed` (matchId, mensagem de erro, tentativa) quando o job falha
+- [x] **mudança de plano** — `AuthService.register` loga `plans.plan_assigned` ao vincular o plano Free na criação da conta (único ponto do sistema hoje que altera o plano de um usuário — ainda não existe endpoint de upgrade/downgrade de assinatura; quando for implementado, deverá chamar `AuditLogsService.log` com o mesmo padrão)
+
+---
+
+### Task 7.2 — Testes
+- [x] `JwtAuthGuard` — rota `@Public()` ignora autenticação; sem token/token inválido lança `UnauthorizedException`; usuário autenticado é retornado
+- [x] `RolesGuard` — admin acessa rota restrita a admin; jogador (`player`) recebe `ForbiddenException`; rota sem `@Roles()` é liberada
+- [x] `MatchesService.findOne` — usuário que não é dono recebe `ForbiddenException`; partida inexistente/deletada retorna `NotFoundException`; dono acessa normalmente
+- [x] `videoFileFilter` — aceita MP4/MOV/AVI; rejeita outros formatos (ex. `image/png`) com `BadRequestException`
+- [x] `AnalysisLimitGuard` — bloqueia com HTTP 402 quando `analysesThisMonth >= monthlyAnalysisLimit` (plano Free); libera quando abaixo do limite; bloqueia sem assinatura ativa
+- [x] `AiCoachService.analyzeMatch` — usa Claude quando disponível; cai para GPT-4o quando Claude falha; marca `AIAnalysis.status = failed` quando ambos falham
+- [x] 6 suites / 20 testes unitários (Jest + ts-jest) em `apps/api/src` — `npm test` na pasta `apps/api`
+- [x] Corrigido erro de compilação em `AuditLogsService.log` (campo `metadata` do Prisma Json não aceitava `Record<string, unknown>` diretamente — cast para `Prisma.InputJsonValue`)
+
+---
+
+### Task 7.3 — Segurança e revisão
+- [x] **Bug crítico corrigido**: `ThrottlerModule.forRoot` estava configurado em `app.module.ts`, mas `ThrottlerGuard` nunca era registrado como guard global — o `@Throttle` do login não tinha nenhum efeito e nenhum endpoint era de fato limitado. Agora `ThrottlerGuard` é o primeiro `APP_GUARD` (roda antes de `JwtAuthGuard`/`RolesGuard`)
+- [x] `@Throttle` adicionado a `register` (5/min), `forgot-password` (3/min — evita spam de e-mail/enumeração) e `reset-password` (5/min); `login` já tinha (5/min)
+- [x] `@Throttle` adicionado em `POST /matches/:id/video` (10/min) — endpoint caro (I/O de disco + fila), antes sujeito apenas ao limite default
+- [x] Teste de regressão `throttler-wiring.integration.spec.ts` — sobe um app Nest real (porta efêmera) reproduzindo o wiring de `app.module.ts` e confirma HTTP 429 após exceder `@Throttle`
+- [x] Upload: revisão confirma formato (fileFilter/multer) e tamanho (500MB) já validados de forma síncrona; duração (90min) validada no worker (Task 4.1) — **corrigido**: vídeo com duração inválida agora é removido do disco (`unlink`) em vez de ficar armazenado indefinidamente após falha não-reprocessável
+- [x] Revisão de exposição de dados sensíveis: `passwordHash` nunca é retornado (todas as queries de user usam `select` explícito); `assertOwner`/`assertCanAccess` cobrem matches e users; `HttpExceptionFilter` não vaza stack trace; cookies de refresh token `httpOnly` + `secure` em produção + `sameSite: strict`; nenhuma alteração necessária, apenas confirmação
+- [x] 1 nova suite de teste (integração do throttling) — total agora 7 suites / 21 testes em `apps/api/src`
+
+### Task 7.4 — Deploy em VPS
+- [x] `apps/api/Dockerfile` — build multi-stage (Debian `bookworm-slim`, não Alpine: `@ffmpeg-installer/ffmpeg` não publica binário musl); estágios `build` → `migrator` (com Prisma CLI) e `pruned`/`production` (sem devDependencies)
+- [x] `apps/web/Dockerfile` — build multi-stage com Next.js `output: 'standalone'` (Alpine, sem dependência nativa)
+- [x] `docker-compose.prod.yml` — postgres/redis sem porta exposta ao host (rede interna), `restart: unless-stopped`, serviço `migrate` sob demanda (`profiles: [tools]`), `nginx` + `certbot`
+- [x] `deploy/nginx/coachplay.conf.template` — reverse proxy: `/` → web:3000, `/api/` e `/uploads/` → api:3001, redirect HTTP→HTTPS, `client_max_body_size 550M`
+- [x] `deploy/certbot/init-letsencrypt.sh` — emissão do primeiro certificado Let's Encrypt (dummy cert → sobe nginx → cert real via webroot); renovação automática já embutida no serviço `certbot` (loop de 12h)
+- [x] `deploy/backup/backup-postgres.sh` — `pg_dump` + gzip + rotação (`BACKUP_RETENTION_DAYS`, default 14 dias); agendável via cron
+- [x] `docs/DEPLOY.md` — runbook completo do deploy no VPS
+- [x] **3 bugs pré-existentes corrigidos ao validar o build de produção** (nunca detectados porque a API/o frontend nunca haviam sido buildados/rodados antes):
+  - `apps/web/next.config.ts` não é suportado no Next.js 14 (só a partir do Next 15) — convertido para `next.config.mjs`
+  - `/login` usava `useSearchParams()` sem `<Suspense>`, quebrando o `next build` — refatorado no mesmo padrão já usado em `/reset-password`
+  - Script `start` da API (`node dist/main`) e `CMD` do Dockerfile apontavam para o caminho errado — `nest build` gera `dist/src/main.js`, não `dist/main.js`
+- [x] **Gap crítico de deploy corrigido**: não existiam migrations do Prisma (`apps/api/prisma/migrations/`) — sem elas, `prisma migrate deploy` não criava nenhuma tabela em um banco novo. Gerada a migration inicial (`20260716152320_init`)
+- [x] Build das duas imagens e fluxo completo (`migrate` → `api` → `web`) validado localmente com Docker: registro de usuário, login e roteamento end-to-end confirmados contra Postgres/Redis reais em containers
+
+### Módulo Administrador (pós Fase 7)
+- [x] Os 4 stubs de admin (deixados na Fase 7, sem número de task próprio) foram substituídos por telas reais consumindo dados de verdade:
+  - `GET /admin/overview` — contagens de usuários/partidas por status, custo e contagem de análises de IA concluídas, últimos 8 eventos de auditoria
+  - `GET /admin/usage` — consumo e custo de IA por usuário, paginado
+  - `GET /audit-logs` — leitura paginada com filtro por módulo/ação (o módulo de auditoria só tinha escrita até então)
+  - `(admin)/admin`, `/admin/users` (bloquear/ativar), `/admin/logs`, `/admin/usage` — todas consumindo os endpoints acima, sem dados mockados
+- [x] Ação de bloquear/ativar usuário testada de ponta a ponta (clique → `PATCH /users/:id/status` → persistência confirmada após reload)
+- [x] 2 novas suites de teste (`admin.service.spec.ts`, `audit-logs.service.spec.ts`) — total agora 9 suites / 29 testes em `apps/api/src`
+
+---
+
 ## Próxima tarefa
 
-**Task 6.2** — Controle de limite de uso — ver [`TASKS.md`](TASKS.md)
+Nenhuma tarefa pendente em [`TASKS.md`](TASKS.md) — todas as fases (1–7) concluídas, módulo administrador completo.
+Trabalho futuro fica a critério do time (ex.: análise de vídeo real via visão computacional,
+substituindo os stubs de `GameAnalysisService`).
 
 ---
 
@@ -270,7 +357,13 @@
 | Item | Status |
 |---|---|
 | Banco de dados | Configurado via Docker (não inicializado — rodar `docker-compose up -d`) |
-| Migrations | Nenhuma gerada ainda — rodar `prisma migrate dev` após o primeiro `docker-compose up` |
-| Dependências npm | Não instaladas — rodar `npm install` na raiz |
+| Migrations | `20260716152320_init` gerada e commitada (`apps/api/prisma/migrations/`) |
+| Dependências npm | Instaladas na raiz (`npm install`); Prisma Client gerado (`prisma generate`) |
 | API | Não iniciada |
 | Frontend | Não iniciado |
+
+> **Nota:** se o repositório estiver dentro de uma pasta sincronizada por OneDrive/Dropbox/iCloud,
+> o sync em segundo plano pode "tocar" arquivos do projeto sem mudar o conteúdo, confundindo o
+> file-watcher do Next.js e disparando um Fast Refresh em momento ruim (tela em branco por um
+> instante — resolve com F5). Não é um bug da aplicação; pausar a sincronização durante o
+> desenvolvimento elimina o problema.

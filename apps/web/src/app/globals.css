@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    position: relative;
+  }
+
+  /* Glow ambiente fixo — não usa background-attachment:fixed (renderiza
+     de forma inconsistente entre engines); um elemento fixed evita isso. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image: theme('backgroundImage.luxury-radial');
+  }
+}

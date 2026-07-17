@@ -138,21 +138,21 @@
   - `GET /api/v1/subscriptions/me` — ver meu plano
   - Middleware que bloqueia análise se limite do plano foi atingido
 
-- [ ] **Task 6.2** — Controle de limite de uso
+- [x] **Task 6.2** — Controle de limite de uso
   - Registrar consumo em UsageLog a cada análise
   - Retornar erro 402 quando limite atingido
 
-- [ ] **Task 6.3** — Tela de Plano atual (frontend)
+- [x] **Task 6.3** — Tela de Plano atual (frontend)
   - Exibir plano, limite, consumo atual e data de renovação
 
 ---
 
 ## Fase 7 — Produção
 
-- [ ] **Task 7.1** — Logs e auditoria completos
+- [x] **Task 7.1** — Logs e auditoria completos
   - Registrar: login, cadastro, logout, upload, análise, erros, mudança de plano
 
-- [ ] **Task 7.2** — Testes
+- [x] **Task 7.2** — Testes
   - Usuário sem login não acessa rotas protegidas
   - Usuário não vê partidas de outro usuário
   - Admin acessa painel admin, jogador não
@@ -160,12 +160,12 @@
   - Plano Free respeita limite
   - Fallback de IA funciona
 
-- [ ] **Task 7.3** — Segurança e revisão
+- [x] **Task 7.3** — Segurança e revisão
   - Rate limiting em todos os endpoints críticos
   - Validação de upload (tipo, tamanho, duração)
   - Revisão de exposição de dados sensíveis
 
-- [ ] **Task 7.4** — Deploy em VPS
+- [x] **Task 7.4** — Deploy em VPS
   - Configurar Nginx como reverse proxy
   - Configurar SSL (Let's Encrypt)
   - Configurar backup automático do PostgreSQL

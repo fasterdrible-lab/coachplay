@@ -45,10 +45,10 @@ const PERIODS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function scoreColor(score: number | null): string {
-  if (score === null) return 'text-gray-500';
-  if (score >= 7) return 'text-green-400';
-  if (score >= 5) return 'text-yellow-400';
-  return 'text-red-400';
+  if (score === null) return 'text-[#f8f8fc]/45';
+  if (score >= 7) return 'text-[#6fcf97]';
+  if (score >= 5) return 'text-[#e0954a]';
+  return 'text-[#e2718a]';
 }
 
 function avg(values: (number | null)[]): number | null {
@@ -201,21 +201,21 @@ function CategoryBar({
   const pct = score !== null ? (score / 10) * 100 : 0;
   const barColor =
     score === null
-      ? 'bg-gray-700'
+      ? 'bg-white/[0.08]'
       : score >= 7
-        ? 'bg-green-500'
+        ? 'bg-[#6fcf97]'
         : score >= 5
-          ? 'bg-yellow-500'
+          ? 'bg-[#e0954a]'
           : 'bg-red-500';
 
   return (
     <div className="flex items-center gap-3">
-      <span className="w-4 shrink-0 text-center text-xs text-gray-600">{rank}</span>
+      <span className="w-4 shrink-0 text-center text-xs text-[#f8f8fc]/35">{rank}</span>
       <div className="flex w-24 shrink-0 items-center gap-1.5">
-        <Icon className="h-3.5 w-3.5 shrink-0 text-gray-500" />
-        <span className="text-sm text-gray-400">{label}</span>
+        <Icon className="h-3.5 w-3.5 shrink-0 text-[#f8f8fc]/45" />
+        <span className="text-sm text-[#f8f8fc]/55">{label}</span>
       </div>
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-800">
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
         <div
           className={cn('h-full rounded-full transition-all duration-500', barColor)}
           style={{ width: `${pct}%` }}
@@ -244,15 +244,15 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+    <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
       <div className="mb-3 flex items-center gap-2.5">
         <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', iconClass)}>
           <Icon className="h-4 w-4" />
         </div>
-        <p className="text-sm text-gray-400">{label}</p>
+        <p className="text-sm text-[#f8f8fc]/55">{label}</p>
       </div>
-      <div className="text-2xl font-bold leading-none text-white">{value}</div>
-      {sub && <p className="mt-1.5 text-xs text-gray-500">{sub}</p>}
+      <div className="text-2xl font-bold leading-none text-[#f8f8fc]">{value}</div>
+      {sub && <p className="mt-1.5 text-xs text-[#f8f8fc]/45">{sub}</p>}
     </div>
   );
 }
@@ -320,12 +320,12 @@ export default function EvolutionPage() {
   })();
 
   const trendValue: React.ReactNode = (() => {
-    if (trend === null) return <span className="text-gray-500">—</span>;
+    if (trend === null) return <span className="text-[#f8f8fc]/45">—</span>;
     if (trend > 0)
-      return <span className="text-green-400">+{trend.toFixed(1)}</span>;
+      return <span className="text-[#6fcf97]">+{trend.toFixed(1)}</span>;
     if (trend < 0)
-      return <span className="text-red-400">{trend.toFixed(1)}</span>;
-    return <span className="text-gray-400">0.0</span>;
+      return <span className="text-[#e2718a]">{trend.toFixed(1)}</span>;
+    return <span className="text-[#f8f8fc]/55">0.0</span>;
   })();
 
   const trendIcon = trend !== null && trend > 0 ? TrendingUp : trend !== null && trend < 0 ? TrendingDown : Minus;
@@ -336,7 +336,7 @@ export default function EvolutionPage() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#f8f8fc]/35" />
       </div>
     );
   }
@@ -346,14 +346,14 @@ export default function EvolutionPage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Evolução</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-[#f8f8fc]">Evolução</h1>
+          <p className="mt-0.5 text-sm text-[#f8f8fc]/45">
             {entries.length} partida{entries.length !== 1 ? 's' : ''} analisada{entries.length !== 1 ? 's' : ''} no período
           </p>
         </div>
 
         {/* Period selector */}
-        <div className="flex gap-1 rounded-lg bg-gray-800 p-1">
+        <div className="flex gap-1 rounded-lg bg-white/[0.06] p-1">
           {PERIODS.map((p) => (
             <button
               key={p.days}
@@ -361,8 +361,8 @@ export default function EvolutionPage() {
               className={cn(
                 'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
                 days === p.days
-                  ? 'bg-gray-700 text-white'
-                  : 'text-gray-500 hover:text-gray-300',
+                  ? 'bg-white/[0.08] text-[#f8f8fc]'
+                  : 'text-[#f8f8fc]/45 hover:text-[#f8f8fc]/80',
               )}
             >
               {p.label}
@@ -374,18 +374,18 @@ export default function EvolutionPage() {
       {/* Empty state */}
       {entries.length === 0 && !isRefetching && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-800">
-            <TrendingUp className="h-8 w-8 text-gray-600" />
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06]">
+            <TrendingUp className="h-8 w-8 text-[#f8f8fc]/35" />
           </div>
-          <p className="mb-1 text-base font-medium text-white">
+          <p className="mb-1 text-base font-medium text-[#f8f8fc]">
             Nenhuma partida analisada nos últimos {days} dias
           </p>
-          <p className="mb-6 text-sm text-gray-500">
+          <p className="mb-6 text-sm text-[#f8f8fc]/45">
             Envie uma partida para análise para ver sua evolução aqui
           </p>
           <Link
             href="/matches/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500"
+            className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-br from-gold-bright to-gold px-4 py-2.5 text-sm font-medium text-[#f8f8fc] hover:brightness-110"
           >
             <Plus className="h-4 w-4" />
             Nova partida
@@ -399,7 +399,7 @@ export default function EvolutionPage() {
           <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
               icon={Trophy}
-              iconClass="bg-blue-500/15 text-blue-400"
+              iconClass="bg-gold/15 text-gold-bright"
               label="Partidas no Período"
               value={entries.length}
               sub={`últimos ${days} dias`}
@@ -408,24 +408,24 @@ export default function EvolutionPage() {
               icon={Trophy}
               iconClass={
                 bestScore !== null && bestScore >= 7
-                  ? 'bg-green-500/15 text-green-400'
+                  ? 'bg-[#6fcf97]/15 text-[#6fcf97]'
                   : bestScore !== null && bestScore >= 5
-                    ? 'bg-yellow-500/15 text-yellow-400'
-                    : 'bg-red-500/15 text-red-400'
+                    ? 'bg-[#e0954a]/15 text-[#e0954a]'
+                    : 'bg-[#e2718a]/15 text-[#e2718a]'
               }
               label="Melhor Nota"
               value={
                 bestScore !== null ? (
                   <span className={scoreColor(bestScore)}>{bestScore.toFixed(1)}</span>
                 ) : (
-                  <span className="text-gray-500">—</span>
+                  <span className="text-[#f8f8fc]/45">—</span>
                 )
               }
               sub="nota mais alta no período"
             />
             <StatCard
               icon={trendIcon}
-              iconClass="bg-purple-500/15 text-purple-400"
+              iconClass="bg-violet/15 text-violet"
               label="Tendência"
               value={trendValue}
               sub={
@@ -441,11 +441,11 @@ export default function EvolutionPage() {
           </div>
 
           {/* Chart */}
-          <div className={cn('mb-6 rounded-xl border border-gray-800 bg-gray-900 p-4', isRefetching && 'opacity-50')}>
-            <h2 className="mb-4 text-sm font-semibold text-gray-400">Histórico de Notas</h2>
+          <div className={cn('mb-6 rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-4', isRefetching && 'opacity-50')}>
+            <h2 className="mb-4 text-sm font-semibold text-[#f8f8fc]/55">Histórico de Notas</h2>
             {isRefetching ? (
               <div className="flex h-48 items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-gray-600" />
+                <Loader2 className="h-6 w-6 animate-spin text-[#f8f8fc]/35" />
               </div>
             ) : (
               <ScoreChart entries={entries} />
@@ -455,10 +455,10 @@ export default function EvolutionPage() {
           {/* Category performance + per-match trend */}
           <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Categories sorted worst→best */}
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-              <h2 className="mb-4 text-sm font-semibold text-gray-400">
+            <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
+              <h2 className="mb-4 text-sm font-semibold text-[#f8f8fc]/55">
                 Desempenho por Categoria
-                <span className="ml-2 text-xs font-normal text-gray-600">(do mais problemático ao melhor)</span>
+                <span className="ml-2 text-xs font-normal text-[#f8f8fc]/35">(do mais problemático ao melhor)</span>
               </h2>
               <div className="space-y-3.5">
                 {sortedCategories.map((cat, i) => (
@@ -474,30 +474,30 @@ export default function EvolutionPage() {
             </div>
 
             {/* Per-match trend (last 5) */}
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-              <h2 className="mb-4 text-sm font-semibold text-gray-400">Tendência por Partida</h2>
+            <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
+              <h2 className="mb-4 text-sm font-semibold text-[#f8f8fc]/55">Tendência por Partida</h2>
               {entries.length < 2 ? (
-                <p className="text-sm text-gray-600">Analise mais partidas para ver a tendência individual.</p>
+                <p className="text-sm text-[#f8f8fc]/35">Analise mais partidas para ver a tendência individual.</p>
               ) : (
                 <div className="space-y-2">
                   {entriesDesc.slice(0, 6).map((entry, i) => {
                     const prevInTime = entriesDesc[i + 1];
                     const delta =
-                      prevInTime?.overallScore !== null && entry.overallScore !== null
-                        ? Math.round((entry.overallScore - (prevInTime.overallScore ?? 0)) * 10) / 10
+                      prevInTime && prevInTime.overallScore !== null && entry.overallScore !== null
+                        ? Math.round((entry.overallScore - prevInTime.overallScore) * 10) / 10
                         : null;
 
                     return (
                       <Link
                         key={entry.matchId}
                         href={`/matches/${entry.matchId}`}
-                        className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-gray-800"
+                        className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-white/[0.06]"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm text-gray-300">
+                          <p className="truncate text-sm text-[#f8f8fc]/80">
                             {entry.title ?? 'Partida sem título'}
                           </p>
-                          <p className="text-xs text-gray-600">
+                          <p className="text-xs text-[#f8f8fc]/35">
                             {formatShortDate(entry.matchDate, entry.createdAt)}
                             {entry.gameMode ? ` · ${entry.gameMode}` : ''}
                           </p>
@@ -507,7 +507,7 @@ export default function EvolutionPage() {
                             <span
                               className={cn(
                                 'flex items-center gap-0.5 text-xs font-medium',
-                                delta > 0 ? 'text-green-400' : delta < 0 ? 'text-red-400' : 'text-gray-500',
+                                delta > 0 ? 'text-[#6fcf97]' : delta < 0 ? 'text-[#e2718a]' : 'text-[#f8f8fc]/45',
                               )}
                             >
                               {delta > 0 ? (
@@ -538,14 +538,14 @@ export default function EvolutionPage() {
           </div>
 
           {/* Comparison table */}
-          <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-            <h2 className="mb-4 text-sm font-semibold text-gray-400">
+          <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
+            <h2 className="mb-4 text-sm font-semibold text-[#f8f8fc]/55">
               Comparação de Partidas
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-800 text-left text-xs text-gray-600">
+                  <tr className="border-b border-white/[0.08] text-left text-xs text-[#f8f8fc]/35">
                     <th className="pb-3 pr-4 font-medium">Data</th>
                     <th className="pb-3 pr-4 font-medium">Partida</th>
                     <th className="pb-3 pr-4 text-right font-medium">Geral</th>
@@ -559,19 +559,19 @@ export default function EvolutionPage() {
                   {entriesDesc.map((entry, i) => {
                     const prevInTime = entriesDesc[i + 1];
                     const delta =
-                      prevInTime?.overallScore !== null && entry.overallScore !== null
-                        ? entry.overallScore - (prevInTime.overallScore ?? 0)
+                      prevInTime && prevInTime.overallScore !== null && entry.overallScore !== null
+                        ? entry.overallScore - prevInTime.overallScore
                         : null;
 
                     return (
                       <tr key={entry.matchId} className="group">
-                        <td className="py-3 pr-4 text-xs text-gray-500 tabular-nums">
+                        <td className="py-3 pr-4 text-xs text-[#f8f8fc]/45 tabular-nums">
                           {formatShortDate(entry.matchDate, entry.createdAt)}
                         </td>
                         <td className="py-3 pr-4">
                           <Link
                             href={`/matches/${entry.matchId}`}
-                            className="truncate text-gray-300 transition-colors group-hover:text-white"
+                            className="truncate text-[#f8f8fc]/80 transition-colors group-hover:text-[#f8f8fc]"
                           >
                             {entry.title ?? 'Partida sem título'}
                           </Link>
@@ -584,7 +584,7 @@ export default function EvolutionPage() {
                             <span
                               className={cn(
                                 'ml-1.5 text-xs',
-                                delta > 0 ? 'text-green-500' : delta < 0 ? 'text-red-500' : 'text-gray-600',
+                                delta > 0 ? 'text-[#6fcf97]' : delta < 0 ? 'text-[#e2718a]' : 'text-[#f8f8fc]/35',
                               )}
                             >
                               {delta > 0 ? `↑` : delta < 0 ? `↓` : `=`}

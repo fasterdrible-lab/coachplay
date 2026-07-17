@@ -15,15 +15,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       disabled={disabled || isLoading}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950 disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:pointer-events-none disabled:opacity-50',
         variant === 'primary' &&
-          'bg-blue-600 text-white hover:bg-blue-500 focus-visible:ring-blue-500',
+          'bg-gold text-[#14100a] hover:bg-gold-bright focus-visible:ring-gold shadow-gold',
         variant === 'secondary' &&
-          'bg-gray-800 text-gray-100 hover:bg-gray-700 focus-visible:ring-gray-600',
+          'bg-white/[0.06] text-[#f8f8fc] hover:bg-white/[0.1] focus-visible:ring-white/20',
         variant === 'ghost' &&
-          'text-gray-400 hover:bg-gray-800 hover:text-white focus-visible:ring-gray-600',
+          'text-white/60 hover:bg-white/[0.06] hover:text-[#f8f8fc] focus-visible:ring-white/20',
         variant === 'danger' &&
-          'bg-red-600 text-white hover:bg-red-500 focus-visible:ring-red-500',
+          'bg-[#e2718a] text-[#1a0810] hover:bg-[#e88ea3] focus-visible:ring-[#e2718a]',
         className,
       )}
       {...props}

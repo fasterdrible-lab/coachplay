@@ -102,10 +102,10 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 };
 
 const SEVERITY_CONFIG: Record<Severity, { label: string; className: string }> = {
-  critical: { label: 'Crítico', className: 'bg-red-500/15 text-red-400 border-red-500/30' },
-  high: { label: 'Alto', className: 'bg-orange-500/15 text-orange-400 border-orange-500/30' },
-  medium: { label: 'Médio', className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' },
-  low: { label: 'Baixo', className: 'bg-gray-700 text-gray-400 border-gray-600' },
+  critical: { label: 'Crítico', className: 'bg-[#e2718a]/15 text-[#e2718a] border-[#e2718a]/30' },
+  high: { label: 'Alto', className: 'bg-[#e0954a]/15 text-[#e0954a] border-orange-500/30' },
+  medium: { label: 'Médio', className: 'bg-[#e0954a]/15 text-[#e0954a] border-yellow-500/30' },
+  low: { label: 'Baixo', className: 'bg-white/[0.08] text-[#f8f8fc]/55 border-white/15' },
 };
 
 const SEVERITY_ORDER: Severity[] = ['critical', 'high', 'medium', 'low'];
@@ -136,20 +136,20 @@ function formatDate(iso: string | null, fallback: string): string {
 }
 
 function scoreColor(score: number | null): string {
-  if (score === null) return 'text-gray-500';
-  if (score >= 7) return 'text-green-400';
-  if (score >= 5) return 'text-yellow-400';
-  return 'text-red-400';
+  if (score === null) return 'text-[#f8f8fc]/45';
+  if (score >= 7) return 'text-[#6fcf97]';
+  if (score >= 5) return 'text-[#e0954a]';
+  return 'text-[#e2718a]';
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   const cfg: Record<string, { label: string; icon: React.ElementType; className: string }> = {
-    analyzed: { label: 'Analisado', icon: CheckCircle2, className: 'bg-green-500/15 text-green-400' },
-    processing: { label: 'Processando', icon: Zap, className: 'bg-yellow-500/15 text-yellow-400' },
-    pending: { label: 'Aguardando', icon: Clock, className: 'bg-gray-700 text-gray-400' },
-    failed: { label: 'Falha', icon: XCircle, className: 'bg-red-500/15 text-red-400' },
+    analyzed: { label: 'Analisado', icon: CheckCircle2, className: 'bg-[#6fcf97]/15 text-[#6fcf97]' },
+    processing: { label: 'Processando', icon: Zap, className: 'bg-[#e0954a]/15 text-[#e0954a]' },
+    pending: { label: 'Aguardando', icon: Clock, className: 'bg-white/[0.08] text-[#f8f8fc]/55' },
+    failed: { label: 'Falha', icon: XCircle, className: 'bg-[#e2718a]/15 text-[#e2718a]' },
   };
   const c = cfg[status] ?? cfg.pending;
   return (
@@ -162,9 +162,9 @@ function StatusBadge({ status }: { status: string }) {
 
 function CategoryScoreCard({ label, score, icon: Icon }: { label: string; score: number | null; icon: React.ElementType }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900 p-4 text-center">
-      <Icon className="mx-auto mb-2 h-4 w-4 text-gray-500" />
-      <p className="mb-1 text-xs text-gray-500">{label}</p>
+    <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-4 text-center">
+      <Icon className="mx-auto mb-2 h-4 w-4 text-[#f8f8fc]/45" />
+      <p className="mb-1 text-xs text-[#f8f8fc]/45">{label}</p>
       <p className={cn('text-xl font-bold', scoreColor(score))}>
         {score !== null ? score.toFixed(1) : '—'}
       </p>
@@ -181,10 +181,10 @@ function ErrorItem({ error }: { error: DetectedError }) {
         <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
         <span className="shrink-0 text-xs font-medium">{cfg.label}</span>
       </div>
-      <p className="mb-2 text-sm text-gray-300">{error.description}</p>
+      <p className="mb-2 text-sm text-[#f8f8fc]/80">{error.description}</p>
       {error.suggestion && (
-        <p className="text-xs text-gray-500">
-          <span className="font-medium text-gray-400">→ </span>
+        <p className="text-xs text-[#f8f8fc]/45">
+          <span className="font-medium text-[#f8f8fc]/55">→ </span>
           {error.suggestion}
         </p>
       )}
@@ -198,20 +198,20 @@ function EventItem({ event }: { event: GameEvent }) {
   return (
     <div className="flex gap-3">
       <div className="flex flex-col items-center">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-800 text-gray-500">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[#f8f8fc]/45">
           <Icon className="h-3.5 w-3.5" />
         </div>
-        <div className="mt-1 w-px flex-1 bg-gray-800" />
+        <div className="mt-1 w-px flex-1 bg-white/[0.06]" />
       </div>
       <div className="pb-4 pt-0.5">
         <div className="mb-0.5 flex items-center gap-2">
-          <span className="font-mono text-xs text-gray-500">
+          <span className="font-mono text-xs text-[#f8f8fc]/45">
             {formatTimestamp(event.timestampStart)}
           </span>
-          <span className="text-xs font-medium text-gray-400">{label}</span>
+          <span className="text-xs font-medium text-[#f8f8fc]/55">{label}</span>
         </div>
         {event.description && (
-          <p className="text-xs text-gray-600">{event.description}</p>
+          <p className="text-xs text-[#f8f8fc]/35">{event.description}</p>
         )}
       </div>
     </div>
@@ -255,7 +255,7 @@ export default function MatchReportPage() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#f8f8fc]/35" />
       </div>
     );
   }
@@ -265,16 +265,16 @@ export default function MatchReportPage() {
   if (fetchError || !match) {
     return (
       <div className="p-6">
-        <Link href="/matches" className="mb-6 flex items-center gap-1.5 text-sm text-gray-500 hover:text-white">
+        <Link href="/matches" className="mb-6 flex items-center gap-1.5 text-sm text-[#f8f8fc]/45 hover:text-[#f8f8fc]">
           <ArrowLeft className="h-4 w-4" />
           Minhas Partidas
         </Link>
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <AlertCircle className="mb-3 h-10 w-10 text-red-400" />
-          <p className="text-base font-medium text-white">
+          <AlertCircle className="mb-3 h-10 w-10 text-[#e2718a]" />
+          <p className="text-base font-medium text-[#f8f8fc]">
             {fetchError || 'Não foi possível carregar a partida'}
           </p>
-          <Link href="/matches" className="mt-3 text-sm text-blue-400 hover:text-blue-300">
+          <Link href="/matches" className="mt-3 text-sm text-gold-bright hover:text-gold">
             Voltar para partidas
           </Link>
         </div>
@@ -316,7 +316,7 @@ export default function MatchReportPage() {
       {/* Back link */}
       <Link
         href="/matches"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-white"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm text-[#f8f8fc]/45 transition-colors hover:text-[#f8f8fc]"
       >
         <ArrowLeft className="h-4 w-4" />
         Minhas Partidas
@@ -328,16 +328,16 @@ export default function MatchReportPage() {
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <StatusBadge status={match.status} />
             {match.gameMode && (
-              <span className="flex items-center gap-1 rounded-full bg-gray-800 px-2.5 py-1 text-xs text-gray-400">
+              <span className="flex items-center gap-1 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-[#f8f8fc]/55">
                 <Gamepad2 className="h-3 w-3" />
                 {match.gameMode}
               </span>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-2xl font-bold text-[#f8f8fc]">
             {match.title ?? 'Partida sem título'}
           </h1>
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-gray-500">
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-[#f8f8fc]/45">
             <CalendarDays className="h-3.5 w-3.5 shrink-0" />
             {formatDate(match.matchDate, match.createdAt)}
           </p>
@@ -345,8 +345,8 @@ export default function MatchReportPage() {
 
         {/* Score */}
         <div className="text-right">
-          <p className="mb-0.5 text-xs text-gray-500">Placar</p>
-          <p className="text-4xl font-bold tabular-nums text-white">
+          <p className="mb-0.5 text-xs text-[#f8f8fc]/45">Placar</p>
+          <p className="text-4xl font-bold tabular-nums text-[#f8f8fc]">
             {hasScore ? `${match.scoreUser} × ${match.scoreOpponent}` : '— × —'}
           </p>
         </div>
@@ -354,16 +354,16 @@ export default function MatchReportPage() {
 
       {/* ── Not analyzed guard ──────────────────────────────────────────────── */}
       {!isAnalyzed && (
-        <div className="mb-8 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-6 text-center">
-          <Zap className="mx-auto mb-3 h-8 w-8 text-yellow-400" />
-          <p className="font-medium text-white">
+        <div className="mb-8 rounded-xl border border-[#e0954a]/20 bg-[#e0954a]/5 p-6 text-center">
+          <Zap className="mx-auto mb-3 h-8 w-8 text-[#e0954a]" />
+          <p className="font-medium text-[#f8f8fc]">
             {match.status === 'processing'
               ? 'Análise em andamento'
               : match.status === 'failed'
                 ? 'Análise falhou'
                 : 'Aguardando processamento'}
           </p>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-[#f8f8fc]/45">
             {match.status === 'processing'
               ? 'O vídeo está sendo processado. Volte em alguns minutos.'
               : match.status === 'failed'
@@ -377,14 +377,14 @@ export default function MatchReportPage() {
       {isAnalyzed && report && (
         <div className="mb-6">
           {/* Overall score */}
-          <div className="mb-4 flex items-center justify-between rounded-xl border border-gray-800 bg-gray-900 px-6 py-5">
+          <div className="mb-4 flex items-center justify-between rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl px-6 py-5">
             <div>
-              <p className="text-sm text-gray-500">Nota Geral</p>
+              <p className="text-sm text-[#f8f8fc]/45">Nota Geral</p>
               <p className={cn('text-5xl font-bold', scoreColor(report.overallScore))}>
                 {report.overallScore !== null ? report.overallScore.toFixed(1) : '—'}
               </p>
             </div>
-            <Star className="h-10 w-10 text-gray-700" />
+            <Star className="h-10 w-10 text-white/35" />
           </div>
 
           {/* Category scores */}
@@ -399,19 +399,19 @@ export default function MatchReportPage() {
 
       {/* ── AI Summary ─────────────────────────────────────────────────────── */}
       {isAnalyzed && aiSummary && (
-        <div className="mb-6 rounded-xl border border-blue-500/20 bg-blue-500/5 p-5">
+        <div className="mb-6 rounded-xl border border-gold/20 bg-gold/5 p-5">
           <div className="mb-3 flex items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/20 text-gold-bright">
               <Bot className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-blue-300">Resumo do Coach IA</p>
+              <p className="text-sm font-semibold text-gold">Resumo do Coach IA</p>
               {aiModel && (
-                <p className="text-xs text-gray-600">via {aiModel}</p>
+                <p className="text-xs text-[#f8f8fc]/35">via {aiModel}</p>
               )}
             </div>
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-300">{aiSummary}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#f8f8fc]/80">{aiSummary}</p>
         </div>
       )}
 
@@ -420,19 +420,19 @@ export default function MatchReportPage() {
         <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Detected errors */}
           <div>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-400">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#f8f8fc]/55">
               <AlertTriangle className="h-4 w-4" />
               Erros Detectados
               {sortedErrors.length > 0 && (
-                <span className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-gray-500">
+                <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-[#f8f8fc]/45">
                   {sortedErrors.length}
                 </span>
               )}
             </h2>
             {sortedErrors.length === 0 ? (
-              <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 text-center">
-                <CheckCircle2 className="mx-auto mb-2 h-6 w-6 text-green-500" />
-                <p className="text-sm text-gray-500">Nenhum erro detectado</p>
+              <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-6 text-center">
+                <CheckCircle2 className="mx-auto mb-2 h-6 w-6 text-[#6fcf97]" />
+                <p className="text-sm text-[#f8f8fc]/45">Nenhum erro detectado</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -445,28 +445,28 @@ export default function MatchReportPage() {
 
           {/* Game events timeline */}
           <div>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-400">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#f8f8fc]/55">
               <Clock className="h-4 w-4" />
               Lances da Partida
               {match.gameEvents.length > 0 && (
-                <span className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-gray-500">
+                <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-[#f8f8fc]/45">
                   {match.gameEvents.length}
                 </span>
               )}
             </h2>
             {visibleEvents.length === 0 ? (
-              <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 text-center">
-                <p className="text-sm text-gray-500">Nenhum lance registrado</p>
+              <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-6 text-center">
+                <p className="text-sm text-[#f8f8fc]/45">Nenhum lance registrado</p>
               </div>
             ) : (
-              <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
+              <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-4">
                 {visibleEvents.map((event, index) => (
                   <div key={event.id} className={index === visibleEvents.length - 1 ? '[&_.divider]:hidden' : ''}>
                     <EventItem event={event} />
                   </div>
                 ))}
                 {match.gameEvents.length > 15 && (
-                  <p className="mt-1 text-center text-xs text-gray-600">
+                  <p className="mt-1 text-center text-xs text-[#f8f8fc]/35">
                     + {match.gameEvents.length - 15} lances não exibidos
                   </p>
                 )}
@@ -478,8 +478,8 @@ export default function MatchReportPage() {
 
       {/* ── Pontos Positivos ────────────────────────────────────────────────── */}
       {isAnalyzed && positiveCategories.length > 0 && (
-        <div className="mb-6 rounded-xl border border-green-500/20 bg-green-500/5 p-5">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-green-400">
+        <div className="mb-6 rounded-xl border border-[#6fcf97]/20 bg-[#6fcf97]/5 p-5">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#6fcf97]">
             <CheckCircle2 className="h-4 w-4" />
             Pontos Positivos
           </h2>
@@ -487,10 +487,10 @@ export default function MatchReportPage() {
             {positiveCategories.map((c) => (
               <div
                 key={c.label}
-                className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2"
+                className="flex items-center gap-2 rounded-lg border border-[#6fcf97]/20 bg-[#6fcf97]/10 px-3 py-2"
               >
-                <span className="text-sm font-medium text-green-300">{c.label}</span>
-                <span className="text-sm font-bold text-green-400">{c.score.toFixed(1)}</span>
+                <span className="text-sm font-medium text-[#6fcf97]">{c.label}</span>
+                <span className="text-sm font-bold text-[#6fcf97]">{c.score.toFixed(1)}</span>
               </div>
             ))}
           </div>
@@ -499,19 +499,19 @@ export default function MatchReportPage() {
 
       {/* ── O que Treinar ───────────────────────────────────────────────────── */}
       {isAnalyzed && trainingTip && (
-        <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-400">
+        <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#f8f8fc]/55">
             <BookOpen className="h-4 w-4" />
             O que Treinar
           </h2>
           {report?.mainProblem && (
-            <p className="mb-2 text-xs text-gray-600">
-              Foco: <span className="font-medium text-gray-400">
+            <p className="mb-2 text-xs text-[#f8f8fc]/35">
+              Foco: <span className="font-medium text-[#f8f8fc]/55">
                 {CATEGORY_LABELS[report.mainProblem] ?? report.mainProblem}
               </span>
             </p>
           )}
-          <p className="text-sm leading-relaxed text-gray-300">{trainingTip}</p>
+          <p className="text-sm leading-relaxed text-[#f8f8fc]/80">{trainingTip}</p>
         </div>
       )}
     </div>

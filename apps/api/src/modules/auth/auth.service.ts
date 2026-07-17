@@ -11,6 +11,7 @@ import * as crypto from 'crypto';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { MailService } from '../../shared/mail/mail.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -31,6 +32,7 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
     private mail: MailService,
+    private auditLogs: AuditLogsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -55,6 +57,15 @@ export class AuthService {
 
       return created;
     });
+
+    if (freePlan) {
+      await this.auditLogs.log({
+        userId: user.id,
+        module: 'plans',
+        action: 'plan_assigned',
+        metadata: { planId: freePlan.id, planName: freePlan.name },
+      });
+    }
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
     return {

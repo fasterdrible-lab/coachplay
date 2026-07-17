@@ -50,7 +50,7 @@ function PasswordStrength({ password }: { password: string }) {
         return (
           <li
             key={label}
-            className={`flex items-center gap-1.5 text-xs transition-colors ${ok ? 'text-green-400' : 'text-gray-500'}`}
+            className={`flex items-center gap-1.5 text-xs transition-colors ${ok ? 'text-[#6fcf97]' : 'text-[#f8f8fc]/45'}`}
           >
             {ok ? (
               <Check className="h-3 w-3 shrink-0" aria-hidden />
@@ -97,26 +97,26 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-950 px-4 py-12">
+    <main className="min-h-screen flex items-center justify-center bg-ink px-4 py-12">
       <div className="w-full max-w-md">
 
         {/* Brand */}
         <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 mb-4">
-            <span className="text-white text-xl font-bold">C</span>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-gold-bright to-gold shadow-gold mb-4">
+            <span className="text-[#14100a] text-xl font-bold">C</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Coach Play</h1>
-          <p className="mt-1 text-sm text-gray-400">Comece a analisar suas partidas gratuitamente</p>
+          <h1 className="text-2xl font-bold text-[#f8f8fc]">Coach Play</h1>
+          <p className="mt-1 text-sm text-[#f8f8fc]/55">Comece a analisar suas partidas gratuitamente</p>
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl border border-gray-800 bg-gray-900 p-8 shadow-xl">
-          <h2 className="mb-6 text-lg font-semibold text-white">Criar conta</h2>
+        <div className="rounded-2xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-8 shadow-xl">
+          <h2 className="mb-6 text-lg font-semibold text-[#f8f8fc]">Criar conta</h2>
 
           {/* Erro da API */}
           {apiError && (
-            <div className="mb-5 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
-              <p className="text-sm text-red-400">{apiError}</p>
+            <div className="mb-5 rounded-lg border border-[#e2718a]/30 bg-[#e2718a]/10 px-4 py-3">
+              <p className="text-sm text-[#e2718a]">{apiError}</p>
             </div>
           )}
 
@@ -147,7 +147,7 @@ export default function RegisterPage() {
 
             {/* Senha */}
             <div className="space-y-1.5">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="password" className="block text-sm font-medium text-[#f8f8fc]/80">
                 Senha
               </label>
               <div className="relative">
@@ -157,10 +157,10 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   placeholder="••••••••"
                   className={[
-                    'w-full rounded-lg border bg-gray-800 px-3 py-2.5 pr-10 text-sm text-white',
-                    'placeholder-gray-500 transition-colors',
-                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                    errors.password ? 'border-red-500' : 'border-gray-700',
+                    'w-full rounded-lg border bg-white/[0.04] px-3 py-2.5 pr-10 text-sm text-[#f8f8fc]',
+                    'placeholder-white/30 transition-colors',
+                    'focus:outline-none focus:ring-2 focus:ring-gold/50 focus:border-transparent',
+                    errors.password ? 'border-[#e2718a]' : 'border-white/10',
                   ].join(' ')}
                   {...register('password')}
                 />
@@ -169,7 +169,7 @@ export default function RegisterPage() {
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                   tabIndex={-1}
-                  className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-200 transition-colors"
+                  className="absolute inset-y-0 right-3 flex items-center text-[#f8f8fc]/55 hover:text-[#f8f8fc]/75 transition-colors"
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" aria-hidden />
@@ -179,14 +179,14 @@ export default function RegisterPage() {
                 </button>
               </div>
               {errors.password && (
-                <p className="text-xs text-red-400">{errors.password.message}</p>
+                <p className="text-xs text-[#e2718a]">{errors.password.message}</p>
               )}
               <PasswordStrength password={passwordValue} />
             </div>
 
             {/* Confirmar senha */}
             <div className="space-y-1.5">
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#f8f8fc]/80">
                 Confirmar senha
               </label>
               <div className="relative">
@@ -196,10 +196,10 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   placeholder="••••••••"
                   className={[
-                    'w-full rounded-lg border bg-gray-800 px-3 py-2.5 pr-10 text-sm text-white',
-                    'placeholder-gray-500 transition-colors',
-                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                    errors.confirmPassword ? 'border-red-500' : 'border-gray-700',
+                    'w-full rounded-lg border bg-white/[0.04] px-3 py-2.5 pr-10 text-sm text-[#f8f8fc]',
+                    'placeholder-white/30 transition-colors',
+                    'focus:outline-none focus:ring-2 focus:ring-gold/50 focus:border-transparent',
+                    errors.confirmPassword ? 'border-[#e2718a]' : 'border-white/10',
                   ].join(' ')}
                   {...register('confirmPassword')}
                 />
@@ -208,7 +208,7 @@ export default function RegisterPage() {
                   onClick={() => setShowConfirm((v) => !v)}
                   aria-label={showConfirm ? 'Ocultar confirmação' : 'Mostrar confirmação'}
                   tabIndex={-1}
-                  className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-200 transition-colors"
+                  className="absolute inset-y-0 right-3 flex items-center text-[#f8f8fc]/55 hover:text-[#f8f8fc]/75 transition-colors"
                 >
                   {showConfirm ? (
                     <EyeOff className="h-4 w-4" aria-hidden />
@@ -218,7 +218,7 @@ export default function RegisterPage() {
                 </button>
               </div>
               {errors.confirmPassword && (
-                <p className="text-xs text-red-400">{errors.confirmPassword.message}</p>
+                <p className="text-xs text-[#e2718a]">{errors.confirmPassword.message}</p>
               )}
             </div>
 
@@ -233,18 +233,18 @@ export default function RegisterPage() {
           </form>
 
           {/* Termos */}
-          <p className="mt-4 text-center text-xs text-gray-500">
+          <p className="mt-4 text-center text-xs text-[#f8f8fc]/45">
             Ao criar sua conta você concorda com nossos{' '}
-            <span className="text-gray-400">Termos de Uso</span>.
+            <span className="text-[#f8f8fc]/55">Termos de Uso</span>.
           </p>
 
           {/* Login */}
-          <div className="mt-5 border-t border-gray-800 pt-5">
-            <p className="text-center text-sm text-gray-400">
+          <div className="mt-5 border-t border-white/[0.08] pt-5">
+            <p className="text-center text-sm text-[#f8f8fc]/55">
               Já tem conta?{' '}
               <Link
                 href="/login"
-                className="font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                className="font-medium text-gold-bright hover:text-gold transition-colors"
               >
                 Entrar
               </Link>
@@ -253,7 +253,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-xs text-gray-600">
+        <p className="mt-6 text-center text-xs text-[#f8f8fc]/35">
           © {new Date().getFullYear()} Coach Play
         </p>
       </div>

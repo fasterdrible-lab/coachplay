@@ -110,10 +110,10 @@ function formatDate(iso: string | null, fallback: string): string {
 }
 
 function scoreColor(score: number | null): string {
-  if (score === null) return 'text-gray-400';
-  if (score >= 7) return 'text-green-400';
-  if (score >= 5) return 'text-yellow-400';
-  return 'text-red-400';
+  if (score === null) return 'text-[#f8f8fc]/55';
+  if (score >= 7) return 'text-[#6fcf97]';
+  if (score >= 5) return 'text-[#e0954a]';
+  return 'text-[#e2718a]';
 }
 
 function computeWeeklyDelta(entries: EvolutionEntry[]): number | null {
@@ -136,15 +136,15 @@ interface StatCardProps {
 
 function StatCard({ icon: Icon, iconClassName, label, value, sub }: StatCardProps) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+    <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
       <div className="mb-3 flex items-center gap-2.5">
         <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', iconClassName)}>
           <Icon className="h-4 w-4" />
         </div>
-        <p className="text-sm text-gray-400">{label}</p>
+        <p className="text-sm text-[#f8f8fc]/55">{label}</p>
       </div>
-      <div className="text-2xl font-bold leading-none text-white">{value}</div>
-      {sub && <p className="mt-1.5 text-xs text-gray-500">{sub}</p>}
+      <div className="text-2xl font-bold leading-none text-[#f8f8fc]">{value}</div>
+      {sub && <p className="mt-1.5 text-xs text-[#f8f8fc]/45">{sub}</p>}
     </div>
   );
 }
@@ -154,16 +154,16 @@ function StatCard({ icon: Icon, iconClassName, label, value, sub }: StatCardProp
 function LatestMatchCard({ match }: { match: LatestMatch | null }) {
   if (!match) {
     return (
-      <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-        <h2 className="mb-4 text-sm font-semibold text-gray-400">Última Partida</h2>
+      <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
+        <h2 className="mb-4 text-sm font-semibold text-[#f8f8fc]/55">Última Partida</h2>
         <div className="flex flex-col items-center justify-center py-8 text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-800">
-            <Gamepad2 className="h-6 w-6 text-gray-600" />
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.06]">
+            <Gamepad2 className="h-6 w-6 text-[#f8f8fc]/35" />
           </div>
-          <p className="mb-3 text-sm text-gray-500">Nenhuma partida registrada ainda</p>
+          <p className="mb-3 text-sm text-[#f8f8fc]/45">Nenhuma partida registrada ainda</p>
           <Link
             href="/matches/new"
-            className="text-xs font-medium text-blue-400 hover:text-blue-300"
+            className="text-xs font-medium text-gold-bright hover:text-gold"
           >
             Criar primeira partida →
           </Link>
@@ -176,26 +176,26 @@ function LatestMatchCard({ match }: { match: LatestMatch | null }) {
   const overallScore = match.report?.overallScore ?? null;
 
   const statusConfig: Record<string, { label: string; className: string }> = {
-    analyzed: { label: 'Analisado', className: 'bg-green-500/15 text-green-400' },
-    processing: { label: 'Processando', className: 'bg-yellow-500/15 text-yellow-400' },
-    failed: { label: 'Falha', className: 'bg-red-500/15 text-red-400' },
-    pending: { label: 'Aguardando', className: 'bg-gray-700 text-gray-400' },
+    analyzed: { label: 'Analisado', className: 'bg-[#6fcf97]/15 text-[#6fcf97]' },
+    processing: { label: 'Processando', className: 'bg-[#e0954a]/15 text-[#e0954a]' },
+    failed: { label: 'Falha', className: 'bg-[#e2718a]/15 text-[#e2718a]' },
+    pending: { label: 'Aguardando', className: 'bg-white/[0.08] text-[#f8f8fc]/55' },
   };
   const cfg = statusConfig[match.status] ?? statusConfig.pending;
 
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+    <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-400">Última Partida</h2>
+        <h2 className="text-sm font-semibold text-[#f8f8fc]/55">Última Partida</h2>
         <span className={cn('rounded-full px-2.5 py-1 text-xs font-medium', cfg.className)}>
           {cfg.label}
         </span>
       </div>
 
-      <p className="mb-1 text-base font-semibold text-white">
+      <p className="mb-1 text-base font-semibold text-[#f8f8fc]">
         {match.title ?? 'Partida sem título'}
       </p>
-      <p className="mb-5 flex items-center gap-1.5 text-xs text-gray-500">
+      <p className="mb-5 flex items-center gap-1.5 text-xs text-[#f8f8fc]/45">
         <CalendarDays className="h-3 w-3 shrink-0" />
         {formatDate(match.matchDate, match.createdAt)}
         {match.gameMode ? ` · ${match.gameMode}` : ''}
@@ -203,14 +203,14 @@ function LatestMatchCard({ match }: { match: LatestMatch | null }) {
 
       <div className="flex items-end justify-between">
         <div>
-          <p className="mb-0.5 text-xs text-gray-500">Placar</p>
-          <p className="text-3xl font-bold tabular-nums text-white">
+          <p className="mb-0.5 text-xs text-[#f8f8fc]/45">Placar</p>
+          <p className="text-3xl font-bold tabular-nums text-[#f8f8fc]">
             {hasScore ? `${match.scoreUser} × ${match.scoreOpponent}` : '— × —'}
           </p>
         </div>
         {overallScore !== null && (
           <div className="text-right">
-            <p className="mb-0.5 text-xs text-gray-500">Nota</p>
+            <p className="mb-0.5 text-xs text-[#f8f8fc]/45">Nota</p>
             <p className={cn('text-3xl font-bold', scoreColor(overallScore))}>
               {overallScore.toFixed(1)}
             </p>
@@ -219,10 +219,10 @@ function LatestMatchCard({ match }: { match: LatestMatch | null }) {
       </div>
 
       {match.status === 'analyzed' && (
-        <div className="mt-4 border-t border-gray-800 pt-3 text-right">
+        <div className="mt-4 border-t border-white/[0.08] pt-3 text-right">
           <Link
             href={`/matches/${match.id}`}
-            className="text-xs font-medium text-blue-400 hover:text-blue-300"
+            className="text-xs font-medium text-gold-bright hover:text-gold"
           >
             Ver análise completa →
           </Link>
@@ -239,13 +239,13 @@ function TrainingCard({ worstCategory }: { worstCategory: string | null }) {
 
   if (!tipData) {
     return (
-      <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
-        <h2 className="mb-4 text-sm font-semibold text-gray-400">Recomendação de Treino</h2>
+      <div className="rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
+        <h2 className="mb-4 text-sm font-semibold text-[#f8f8fc]/55">Recomendação de Treino</h2>
         <div className="flex flex-col items-center justify-center py-8 text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-800">
-            <BookOpen className="h-6 w-6 text-gray-600" />
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.06]">
+            <BookOpen className="h-6 w-6 text-[#f8f8fc]/35" />
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-[#f8f8fc]/45">
             Analise partidas para receber recomendações personalizadas
           </p>
         </div>
@@ -254,25 +254,25 @@ function TrainingCard({ worstCategory }: { worstCategory: string | null }) {
   }
 
   return (
-    <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-5">
-      <h2 className="mb-4 text-sm font-semibold text-gray-400">Recomendação de Treino</h2>
+    <div className="rounded-xl border border-gold/20 bg-gold/5 p-5">
+      <h2 className="mb-4 text-sm font-semibold text-[#f8f8fc]/55">Recomendação de Treino</h2>
 
       <div className="mb-4 flex items-center gap-2.5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/20 text-gold-bright">
           <Target className="h-4 w-4" />
         </div>
         <div>
-          <p className="text-xs text-gray-500">Área de foco</p>
-          <p className="text-sm font-semibold text-blue-400">{tipData.focus}</p>
+          <p className="text-xs text-[#f8f8fc]/45">Área de foco</p>
+          <p className="text-sm font-semibold text-gold-bright">{tipData.focus}</p>
         </div>
       </div>
 
-      <p className="text-sm leading-relaxed text-gray-300">{tipData.tip}</p>
+      <p className="text-sm leading-relaxed text-[#f8f8fc]/80">{tipData.tip}</p>
 
-      <div className="mt-4 border-t border-blue-500/20 pt-3">
+      <div className="mt-4 border-t border-gold/20 pt-3">
         <Link
           href="/matches"
-          className="flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300"
+          className="flex items-center gap-1 text-xs font-medium text-gold-bright hover:text-gold"
         >
           Ver todas as partidas
           <ChevronRight className="h-3 w-3" />
@@ -311,13 +311,13 @@ export default function DashboardPage() {
   const weekCount = evolution7d.length;
 
   const weeklyValue: React.ReactNode = (() => {
-    if (weekCount === 0) return <span className="text-gray-500">—</span>;
+    if (weekCount === 0) return <span className="text-[#f8f8fc]/45">—</span>;
     if (delta === null) return <span>{weekCount}</span>;
     if (delta > 0)
-      return <span className="text-green-400">+{delta.toFixed(1)}</span>;
+      return <span className="text-[#6fcf97]">+{delta.toFixed(1)}</span>;
     if (delta < 0)
-      return <span className="text-red-400">{delta.toFixed(1)}</span>;
-    return <span className="text-gray-400">0.0</span>;
+      return <span className="text-[#e2718a]">{delta.toFixed(1)}</span>;
+    return <span className="text-[#f8f8fc]/55">0.0</span>;
   })();
 
   const weeklyIcon =
@@ -329,10 +329,10 @@ export default function DashboardPage() {
 
   const avgScoreIconClass = (() => {
     const s = summary?.avgOverallScore;
-    if (s === null || s === undefined) return 'bg-gray-700 text-gray-500';
-    if (s >= 7) return 'bg-green-500/15 text-green-400';
-    if (s >= 5) return 'bg-yellow-500/15 text-yellow-400';
-    return 'bg-red-500/15 text-red-400';
+    if (s === null || s === undefined) return 'bg-white/[0.08] text-[#f8f8fc]/45';
+    if (s >= 7) return 'bg-[#6fcf97]/15 text-[#6fcf97]';
+    if (s >= 5) return 'bg-[#e0954a]/15 text-[#e0954a]';
+    return 'bg-[#e2718a]/15 text-[#e2718a]';
   })();
 
   const todayFormatted = new Date().toLocaleDateString('pt-BR', {
@@ -346,7 +346,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#f8f8fc]/35" />
       </div>
     );
   }
@@ -355,17 +355,17 @@ export default function DashboardPage() {
     <div className="p-6">
       {/* Greeting */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">
+        <h1 className="text-2xl font-bold text-[#f8f8fc]">
           {greeting()}{firstName ? `, ${firstName}` : ''}!
         </h1>
-        <p className="mt-1 text-sm capitalize text-gray-500">{todayFormatted}</p>
+        <p className="mt-1 text-sm capitalize text-[#f8f8fc]/45">{todayFormatted}</p>
       </div>
 
       {/* Stat cards */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={Trophy}
-          iconClassName="bg-blue-500/15 text-blue-400"
+          iconClassName="bg-gold/15 text-gold-bright"
           label="Partidas Analisadas"
           value={summary?.totalAnalyzed ?? 0}
           sub="total acumulado"
@@ -379,24 +379,24 @@ export default function DashboardPage() {
               ? <span className={scoreColor(summary.avgOverallScore)}>
                   {summary.avgOverallScore.toFixed(1)}
                 </span>
-              : <span className="text-gray-500">—</span>
+              : <span className="text-[#f8f8fc]/45">—</span>
           }
           sub="em todas as partidas"
         />
         <StatCard
           icon={AlertTriangle}
-          iconClassName="bg-orange-500/15 text-orange-400"
+          iconClassName="bg-[#e0954a]/15 text-[#e0954a]"
           label="Erro Mais Frequente"
           value={
             summary?.mostFrequentError
               ? CATEGORY_LABELS[summary.mostFrequentError] ?? summary.mostFrequentError
-              : <span className="text-gray-500">—</span>
+              : <span className="text-[#f8f8fc]/45">—</span>
           }
           sub={summary?.mostFrequentError ? 'categoria mais recorrente' : 'sem dados ainda'}
         />
         <StatCard
           icon={weeklyIcon}
-          iconClassName="bg-purple-500/15 text-purple-400"
+          iconClassName="bg-violet/15 text-violet"
           label="Evolução Semanal"
           value={weeklyValue}
           sub={

@@ -22,14 +22,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isLoading || !user || user.role !== 'admin') {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-800 border-t-blue-500" />
+      <div className="flex h-screen items-center justify-center bg-ink">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-gold" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-950 text-white">
+    <div className="flex h-screen overflow-hidden bg-ink text-[#f8f8fc]">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">{children}</main>
     </div>

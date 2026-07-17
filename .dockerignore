@@ -1,0 +1,18 @@
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/.git
+**/.turbo
+**/.vscode
+**/.claude
+**/*.tsbuildinfo
+**/npm-debug.log*
+.env
+.env.local
+.env.*.local
+!.env.example
+uploads/
+*.md
+Logo coach play.png
+Sistema Coach Play.txt

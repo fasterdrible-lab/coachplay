@@ -53,10 +53,10 @@ const STATUS_CONFIG: Record<
   MatchStatus,
   { label: string; icon: React.ElementType; className: string }
 > = {
-  pending: { label: 'Aguardando', icon: Clock, className: 'bg-gray-700 text-gray-300' },
-  processing: { label: 'Processando', icon: Zap, className: 'bg-yellow-500/15 text-yellow-400' },
-  analyzed: { label: 'Analisado', icon: CheckCircle2, className: 'bg-green-500/15 text-green-400' },
-  failed: { label: 'Falha', icon: XCircle, className: 'bg-red-500/15 text-red-400' },
+  pending: { label: 'Aguardando', icon: Clock, className: 'bg-white/[0.08] text-[#f8f8fc]/80' },
+  processing: { label: 'Processando', icon: Zap, className: 'bg-[#e0954a]/15 text-[#e0954a]' },
+  analyzed: { label: 'Analisado', icon: CheckCircle2, className: 'bg-[#6fcf97]/15 text-[#6fcf97]' },
+  failed: { label: 'Falha', icon: XCircle, className: 'bg-[#e2718a]/15 text-[#e2718a]' },
 };
 
 function formatDate(iso: string | null, fallback: string): string {
@@ -89,14 +89,14 @@ function MatchCard({ match }: { match: Match }) {
   const overallScore = match.report?.overallScore ?? null;
 
   return (
-    <div className="flex flex-col rounded-xl border border-gray-800 bg-gray-900 p-5 transition-colors hover:border-gray-700">
+    <div className="flex flex-col rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5 transition-colors hover:border-white/10">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">
+          <p className="truncate text-sm font-semibold text-[#f8f8fc]">
             {match.title ?? 'Partida sem título'}
           </p>
-          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-[#f8f8fc]/45">
             <CalendarDays className="h-3 w-3 shrink-0" />
             {formatDate(match.matchDate, match.createdAt)}
           </p>
@@ -106,21 +106,21 @@ function MatchCard({ match }: { match: Match }) {
 
       {/* Score */}
       <div className="flex flex-1 items-end justify-between">
-        <span className="text-3xl font-bold tabular-nums tracking-tight text-white">
+        <span className="text-3xl font-bold tabular-nums tracking-tight text-[#f8f8fc]">
           {hasScore ? `${match.scoreUser} × ${match.scoreOpponent}` : '— × —'}
         </span>
 
         {overallScore !== null ? (
           <div className="text-right">
-            <p className="text-xs text-gray-500">Nota</p>
+            <p className="text-xs text-[#f8f8fc]/45">Nota</p>
             <p
               className={cn(
                 'text-xl font-bold',
                 overallScore >= 7
-                  ? 'text-green-400'
+                  ? 'text-[#6fcf97]'
                   : overallScore >= 5
-                    ? 'text-yellow-400'
-                    : 'text-red-400',
+                    ? 'text-[#e0954a]'
+                    : 'text-[#e2718a]',
               )}
             >
               {overallScore.toFixed(1)}
@@ -130,9 +130,9 @@ function MatchCard({ match }: { match: Match }) {
       </div>
 
       {/* Footer */}
-      <div className="mt-4 flex items-center justify-between border-t border-gray-800 pt-3">
+      <div className="mt-4 flex items-center justify-between border-t border-white/[0.08] pt-3">
         {match.gameMode ? (
-          <span className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5 text-xs text-[#f8f8fc]/45">
             <Gamepad2 className="h-3 w-3" />
             {match.gameMode}
           </span>
@@ -145,8 +145,8 @@ function MatchCard({ match }: { match: Match }) {
           className={cn(
             'text-xs font-medium transition-colors',
             match.status === 'analyzed'
-              ? 'text-blue-400 hover:text-blue-300'
-              : 'pointer-events-none text-gray-600',
+              ? 'text-gold-bright hover:text-gold'
+              : 'pointer-events-none text-[#f8f8fc]/35',
           )}
         >
           Ver análise →
@@ -159,18 +159,18 @@ function MatchCard({ match }: { match: Match }) {
 function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-800">
-        <Gamepad2 className="h-8 w-8 text-gray-600" />
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06]">
+        <Gamepad2 className="h-8 w-8 text-[#f8f8fc]/35" />
       </div>
       {hasFilters ? (
         <>
-          <p className="mb-1 text-base font-medium text-white">Nenhuma partida encontrada</p>
-          <p className="text-sm text-gray-500">Tente outros termos ou limpe os filtros</p>
+          <p className="mb-1 text-base font-medium text-[#f8f8fc]">Nenhuma partida encontrada</p>
+          <p className="text-sm text-[#f8f8fc]/45">Tente outros termos ou limpe os filtros</p>
         </>
       ) : (
         <>
-          <p className="mb-1 text-base font-medium text-white">Nenhuma partida ainda</p>
-          <p className="mb-6 text-sm text-gray-500">
+          <p className="mb-1 text-base font-medium text-[#f8f8fc]">Nenhuma partida ainda</p>
+          <p className="mb-6 text-sm text-[#f8f8fc]/45">
             Grave sua primeira partida e envie para análise
           </p>
           <Link href="/matches/new">
@@ -235,9 +235,9 @@ export default function MatchesPage() {
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Minhas Partidas</h1>
+          <h1 className="text-2xl font-bold text-[#f8f8fc]">Minhas Partidas</h1>
           {data && !isLoading && (
-            <p className="mt-0.5 text-sm text-gray-500">
+            <p className="mt-0.5 text-sm text-[#f8f8fc]/45">
               {data.total} {data.total === 1 ? 'partida' : 'partidas'}
             </p>
           )}
@@ -253,20 +253,20 @@ export default function MatchesPage() {
       {/* Filters */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#f8f8fc]/45" />
           <input
             type="text"
             placeholder="Buscar por título..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-700 bg-gray-800 py-2.5 pl-9 pr-4 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-lg border border-white/10 bg-white/[0.06] py-2.5 pl-9 pr-4 text-sm text-[#f8f8fc] placeholder-white/30 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/50"
           />
         </div>
         <div className="relative">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full appearance-none rounded-lg border border-gray-700 bg-gray-800 py-2.5 pl-3 pr-9 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:w-auto"
+            className="w-full appearance-none rounded-lg border border-white/10 bg-white/[0.06] py-2.5 pl-3 pr-9 text-sm text-[#f8f8fc] focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/50 sm:w-auto"
           >
             <option value="">Todos os status</option>
             <option value="pending">Aguardando</option>
@@ -274,18 +274,18 @@ export default function MatchesPage() {
             <option value="analyzed">Analisado</option>
             <option value="failed">Falha</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#f8f8fc]/55" />
         </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
-          <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
-          <p className="text-sm text-red-400">{error}</p>
+        <div className="mb-6 flex items-center gap-2 rounded-lg border border-[#e2718a]/30 bg-[#e2718a]/10 px-4 py-3">
+          <AlertCircle className="h-4 w-4 shrink-0 text-[#e2718a]" />
+          <p className="text-sm text-[#e2718a]">{error}</p>
           <button
             onClick={() => setRetryKey((k) => k + 1)}
-            className="ml-auto text-xs text-red-400 underline hover:text-red-300"
+            className="ml-auto text-xs text-[#e2718a] underline hover:text-red-300"
           >
             Tentar novamente
           </button>
@@ -295,7 +295,7 @@ export default function MatchesPage() {
       {/* Loading */}
       {isLoading && (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#f8f8fc]/35" />
         </div>
       )}
 
@@ -314,8 +314,8 @@ export default function MatchesPage() {
 
           {/* Pagination */}
           {data.totalPages > 1 && (
-            <div className="mt-8 flex items-center justify-between border-t border-gray-800 pt-5">
-              <p className="text-sm text-gray-500">
+            <div className="mt-8 flex items-center justify-between border-t border-white/[0.08] pt-5">
+              <p className="text-sm text-[#f8f8fc]/45">
                 Página {data.page} de {data.totalPages}
               </p>
               <div className="flex gap-2">

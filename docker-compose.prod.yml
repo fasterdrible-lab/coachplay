@@ -1,0 +1,117 @@
+version: '3.9'
+
+# Compose de produção (VPS). Diferenças em relação ao docker-compose.yml de dev:
+#   - builda as imagens a partir dos Dockerfiles (sem bind-mount do código-fonte)
+#   - postgres/redis não expõem porta ao host (apenas rede interna)
+#   - nginx como reverse proxy com TLS (Let's Encrypt via certbot)
+#   - restart: unless-stopped em todos os serviços de longa duração
+#
+# Ver docs/DEPLOY.md para o passo a passo completo de deploy no VPS.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: coach-play-api:latest
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/repo/apps/api/uploads
+    networks: [internal]
+
+  # Serviço sob demanda: `docker compose -f docker-compose.prod.yml run --rm migrate`
+  # Roda `prisma migrate deploy` com a imagem completa (com devDependencies/Prisma CLI),
+  # já que a imagem de produção da API é enxuta (npm prune --omit=dev).
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrator
+    image: coach-play-migrator:latest
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    profiles: ['tools']
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    image: coach-play-web:latest
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - api
+    networks: [internal]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./deploy/certbot/conf:/etc/letsencrypt:ro
+      - ./deploy/certbot/www:/var/www/certbot:ro
+    depends_on:
+      - api
+      - web
+    networks: [internal]
+
+  # Bind-mount (não volume nomeado): init-letsencrypt.sh precisa gravar
+  # options-ssl-nginx.conf/ssl-dhparams.pem diretamente no host antes do 1º cert.
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - ./deploy/certbot/conf:/etc/letsencrypt
+      - ./deploy/certbot/www:/var/www/certbot
+    entrypoint: >
+      sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done"
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+
+networks:
+  internal:

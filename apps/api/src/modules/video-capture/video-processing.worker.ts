@@ -1,10 +1,13 @@
 import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { unlink } from 'fs/promises';
 import { MatchStatus, ProcessingStatus } from '@prisma/client';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { AiCoachService } from '../ai-coach/ai-coach.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { GameAnalysisService } from '../game-analysis/game-analysis.service';
+import { PlansService } from '../plans/plans.service';
 import { ReportsService } from '../reports/reports.service';
 import { VideoCaptureService } from './video-capture.service';
 import { VIDEO_PROCESSING_QUEUE, VideoProcessingJobData } from './video-processing.constants';
@@ -19,6 +22,8 @@ export class VideoProcessingWorker extends WorkerHost {
     private readonly gameAnalysisService: GameAnalysisService,
     private readonly aiCoachService: AiCoachService,
     private readonly reportsService: ReportsService,
+    private readonly plansService: PlansService,
+    private readonly auditLogs: AuditLogsService,
   ) {
     super();
   }
@@ -27,6 +32,12 @@ export class VideoProcessingWorker extends WorkerHost {
     const { matchId, videoPath } = job.data;
     this.logger.log(`Job ${job.id}: iniciando processamento da partida ${matchId}`);
 
+    const match = await this.prisma.match.findUnique({
+      where: { id: matchId },
+      select: { userId: true },
+    });
+    const userId = match?.userId ?? null;
+
     try {
       // 1 — Marca como em processamento
       await this.setStatuses(matchId, MatchStatus.processing, ProcessingStatus.processing);
@@ -34,6 +45,8 @@ export class VideoProcessingWorker extends WorkerHost {
       // 2 — Valida duração (máx. 90 min)
       const validation = await this.videoCaptureService.validateVideo(videoPath);
       if (!validation.valid) {
+        // Vídeo não é reprocessável (ex.: excede duração máxima) — remove do disco
+        await unlink(videoPath).catch(() => {});
         throw new Error(validation.error ?? 'Vídeo inválido');
       }
 
@@ -57,6 +70,17 @@ export class VideoProcessingWorker extends WorkerHost {
 
       // 5 — Análise de eventos e erros; atualiza match.status = analyzed ao concluir
       await this.gameAnalysisService.analyzeMatch(matchId, framePaths);
+
+      // 5.1 — Registra consumo de 1 análise em UsageLog (conta para o limite mensal do plano)
+      await this.plansService.registerAnalysisUsage(matchId);
+
+      // 5.2 — Audit log: análise concluída
+      await this.auditLogs.log({
+        userId,
+        module: 'game-analysis',
+        action: 'analysis_completed',
+        metadata: { matchId },
+      });
 
       // 6 — AI Coach: gera resumo tático e persiste AIAnalysis; falha não cancela a partida
       try {
@@ -85,6 +109,12 @@ export class VideoProcessingWorker extends WorkerHost {
         `Job ${job.id}: falha ao processar partida ${matchId} — ${(err as Error).message}`,
       );
       await this.setStatuses(matchId, MatchStatus.failed, ProcessingStatus.failed).catch(() => {});
+      await this.auditLogs.log({
+        userId,
+        module: 'video-processing',
+        action: 'processing_failed',
+        metadata: { matchId, error: (err as Error).message, attempt: job.attemptsMade },
+      });
       throw err; // BullMQ marca o job como failed e aplica retry
     }
   }

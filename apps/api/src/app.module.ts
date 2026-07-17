@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from './shared/database/prisma.module';
 import { JwtAuthGuard } from './shared/guards/jwt-auth.guard';
@@ -16,6 +16,7 @@ import { PlansModule } from './modules/plans/plans.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -46,8 +47,11 @@ import { SettingsModule } from './modules/settings/settings.module';
     ReportsModule,
     AuditLogsModule,
     SettingsModule,
+    AdminModule,
   ],
   providers: [
+    // ThrottlerGuard precisa vir primeiro: aplica o rate limit antes de qualquer verificação de auth
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

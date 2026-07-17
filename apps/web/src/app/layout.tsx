@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Sora } from 'next/font/google';
 import { AuthProvider } from '../providers/auth-provider';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'], variable: '--font-body' });
+const sora = Sora({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-display' });
 
 export const metadata: Metadata = {
   title: 'Coach Play — Analise sua partida de EA FC',
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className}>
+      <body className={`${inter.variable} ${sora.variable} font-sans bg-ink text-[#f8f8fc] antialiased`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

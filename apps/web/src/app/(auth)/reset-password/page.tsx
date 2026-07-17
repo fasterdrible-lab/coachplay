@@ -43,7 +43,7 @@ function PasswordStrength({ password }: { password: string }) {
         return (
           <li
             key={label}
-            className={`flex items-center gap-1.5 text-xs transition-colors ${ok ? 'text-green-400' : 'text-gray-500'}`}
+            className={`flex items-center gap-1.5 text-xs transition-colors ${ok ? 'text-[#6fcf97]' : 'text-[#f8f8fc]/45'}`}
           >
             {ok ? <Check className="h-3 w-3 shrink-0" /> : <X className="h-3 w-3 shrink-0" />}
             {label}
@@ -75,15 +75,15 @@ function ResetForm() {
 
   if (!token) {
     return (
-      <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-8 text-center">
-        <AlertTriangle className="h-10 w-10 text-yellow-400 mx-auto mb-3" />
-        <h2 className="text-lg font-semibold text-white mb-2">Link inválido</h2>
-        <p className="text-sm text-gray-400 mb-5">
+      <div className="rounded-2xl border border-[#e0954a]/30 bg-[#e0954a]/10 p-8 text-center">
+        <AlertTriangle className="h-10 w-10 text-[#e0954a] mx-auto mb-3" />
+        <h2 className="text-lg font-semibold text-[#f8f8fc] mb-2">Link inválido</h2>
+        <p className="text-sm text-[#f8f8fc]/55 mb-5">
           Este link de redefinição é inválido ou está incompleto.
         </p>
         <Link
           href="/forgot-password"
-          className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+          className="text-sm text-gold-bright hover:text-gold transition-colors"
         >
           Solicitar novo link
         </Link>
@@ -93,10 +93,10 @@ function ResetForm() {
 
   if (success) {
     return (
-      <div className="rounded-2xl border border-gray-800 bg-gray-900 p-8 shadow-xl text-center">
-        <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-white mb-2">Senha redefinida!</h2>
-        <p className="text-sm text-gray-400 mb-6">
+      <div className="rounded-2xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-8 shadow-xl text-center">
+        <CheckCircle className="h-12 w-12 text-[#6fcf97] mx-auto mb-4" />
+        <h2 className="text-xl font-semibold text-[#f8f8fc] mb-2">Senha redefinida!</h2>
+        <p className="text-sm text-[#f8f8fc]/55 mb-6">
           Sua senha foi atualizada com sucesso. Faça login com a nova senha.
         </p>
         <Button onClick={() => router.push('/login')} className="w-full">
@@ -123,17 +123,17 @@ function ResetForm() {
   };
 
   return (
-    <div className="rounded-2xl border border-gray-800 bg-gray-900 p-8 shadow-xl">
-      <h2 className="mb-1 text-lg font-semibold text-white">Redefinir senha</h2>
-      <p className="mb-6 text-sm text-gray-400">Escolha uma nova senha segura para sua conta.</p>
+    <div className="rounded-2xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-8 shadow-xl">
+      <h2 className="mb-1 text-lg font-semibold text-[#f8f8fc]">Redefinir senha</h2>
+      <p className="mb-6 text-sm text-[#f8f8fc]/55">Escolha uma nova senha segura para sua conta.</p>
 
       {apiError && (
-        <div className="mb-5 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
-          <p className="text-sm text-red-400">{apiError}</p>
+        <div className="mb-5 rounded-lg border border-[#e2718a]/30 bg-[#e2718a]/10 px-4 py-3">
+          <p className="text-sm text-[#e2718a]">{apiError}</p>
           {apiError.toLowerCase().includes('expirado') && (
             <Link
               href="/forgot-password"
-              className="mt-1 block text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              className="mt-1 block text-xs text-gold-bright hover:text-gold transition-colors"
             >
               Solicitar novo link →
             </Link>
@@ -144,7 +144,7 @@ function ResetForm() {
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         {/* Nova senha */}
         <div className="space-y-1.5">
-          <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+          <label htmlFor="password" className="block text-sm font-medium text-[#f8f8fc]/80">
             Nova senha
           </label>
           <div className="relative">
@@ -155,10 +155,10 @@ function ResetForm() {
               autoFocus
               placeholder="••••••••"
               className={[
-                'w-full rounded-lg border bg-gray-800 px-3 py-2.5 pr-10 text-sm text-white',
-                'placeholder-gray-500 transition-colors',
-                'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                errors.password ? 'border-red-500' : 'border-gray-700',
+                'w-full rounded-lg border bg-white/[0.04] px-3 py-2.5 pr-10 text-sm text-[#f8f8fc]',
+                'placeholder-white/30 transition-colors',
+                'focus:outline-none focus:ring-2 focus:ring-gold/50 focus:border-transparent',
+                errors.password ? 'border-[#e2718a]' : 'border-white/10',
               ].join(' ')}
               {...register('password')}
             />
@@ -167,20 +167,20 @@ function ResetForm() {
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
               tabIndex={-1}
-              className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-200 transition-colors"
+              className="absolute inset-y-0 right-3 flex items-center text-[#f8f8fc]/55 hover:text-[#f8f8fc]/75 transition-colors"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           {errors.password && (
-            <p className="text-xs text-red-400">{errors.password.message}</p>
+            <p className="text-xs text-[#e2718a]">{errors.password.message}</p>
           )}
           <PasswordStrength password={passwordValue} />
         </div>
 
         {/* Confirmar senha */}
         <div className="space-y-1.5">
-          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300">
+          <label htmlFor="confirmPassword" className="block text-sm font-medium text-[#f8f8fc]/80">
             Confirmar nova senha
           </label>
           <div className="relative">
@@ -190,10 +190,10 @@ function ResetForm() {
               autoComplete="new-password"
               placeholder="••••••••"
               className={[
-                'w-full rounded-lg border bg-gray-800 px-3 py-2.5 pr-10 text-sm text-white',
-                'placeholder-gray-500 transition-colors',
-                'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-                errors.confirmPassword ? 'border-red-500' : 'border-gray-700',
+                'w-full rounded-lg border bg-white/[0.04] px-3 py-2.5 pr-10 text-sm text-[#f8f8fc]',
+                'placeholder-white/30 transition-colors',
+                'focus:outline-none focus:ring-2 focus:ring-gold/50 focus:border-transparent',
+                errors.confirmPassword ? 'border-[#e2718a]' : 'border-white/10',
               ].join(' ')}
               {...register('confirmPassword')}
             />
@@ -202,13 +202,13 @@ function ResetForm() {
               onClick={() => setShowConfirm((v) => !v)}
               aria-label={showConfirm ? 'Ocultar confirmação' : 'Mostrar confirmação'}
               tabIndex={-1}
-              className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-200 transition-colors"
+              className="absolute inset-y-0 right-3 flex items-center text-[#f8f8fc]/55 hover:text-[#f8f8fc]/75 transition-colors"
             >
               {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           {errors.confirmPassword && (
-            <p className="text-xs text-red-400">{errors.confirmPassword.message}</p>
+            <p className="text-xs text-[#e2718a]">{errors.confirmPassword.message}</p>
           )}
         </div>
 
@@ -222,26 +222,26 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-950 px-4">
+    <main className="min-h-screen flex items-center justify-center bg-ink px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 mb-4">
-            <span className="text-white text-xl font-bold">C</span>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-gold-bright to-gold shadow-gold mb-4">
+            <span className="text-[#14100a] text-xl font-bold">C</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Coach Play</h1>
+          <h1 className="text-2xl font-bold text-[#f8f8fc]">Coach Play</h1>
         </div>
 
         <Suspense
           fallback={
-            <div className="rounded-2xl border border-gray-800 bg-gray-900 p-8 text-center">
-              <p className="text-gray-400 text-sm">Carregando...</p>
+            <div className="rounded-2xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-8 text-center">
+              <p className="text-[#f8f8fc]/55 text-sm">Carregando...</p>
             </div>
           }
         >
           <ResetForm />
         </Suspense>
 
-        <p className="mt-6 text-center text-xs text-gray-600">
+        <p className="mt-6 text-center text-xs text-[#f8f8fc]/35">
           © {new Date().getFullYear()} Coach Play
         </p>
       </div>

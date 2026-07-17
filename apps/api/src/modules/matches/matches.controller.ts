@@ -15,6 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { MatchesService } from './matches.service';
 import { CreateMatchDto } from './dto/create-match.dto';
 import { UpdateMatchDto } from './dto/update-match.dto';
@@ -53,6 +54,7 @@ export class MatchesController {
   }
 
   @Post(':id/video')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @UseGuards(AnalysisLimitGuard)
   @UseInterceptors(
     FileInterceptor('video', {
