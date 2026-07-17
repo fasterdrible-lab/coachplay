@@ -1,8 +1,8 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.28.0
+**Versão:** V.0.29.0
 **Data:** 2026-07-17
-**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador
+**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador + Configurações
 
 ---
 
@@ -342,13 +342,26 @@
 - [x] Ação de bloquear/ativar usuário testada de ponta a ponta (clique → `PATCH /users/:id/status` → persistência confirmada após reload)
 - [x] 2 novas suites de teste (`admin.service.spec.ts`, `audit-logs.service.spec.ts`) — total agora 9 suites / 29 testes em `apps/api/src`
 
+### Configurações do usuário (pós Fase 7)
+- [x] Stub "Task 2.x" substituído por tela real: nome, nível de feedback, modo de jogo favorito, feedback por voz
+  e idioma, usando o `UserPreferences` que já existia no backend desde a Fase 2 mas nunca tinha tela
+- [x] Testado de ponta a ponta: alterar campos → salvar → reload → confirma persistência no banco
+
+### Correções de infraestrutura (pós Fase 7)
+- [x] `apps/api/package.json` — `postinstall`/`build` agora rodam `prisma generate` antes de `nest build`;
+  sem isso, builds em CI/Vercel com client não gerado falhavam com 17 erros `TS2305`/`TS2694` (client "stub"
+  sem os enums/models do schema)
+- [x] `lib/api.ts` — timeout de 15s em todas as chamadas; evita que o `AuthProvider` fique preso no
+  "Carregando..." para sempre se uma requisição ficar pendurada
+- [x] `next.config.mjs` — `onDemandEntries` com janela maior, reduzindo recompilações ao alternar abas em dev
+
 ---
 
 ## Próxima tarefa
 
-Nenhuma tarefa pendente em [`TASKS.md`](TASKS.md) — todas as fases (1–7) concluídas, módulo administrador completo.
-Trabalho futuro fica a critério do time (ex.: análise de vídeo real via visão computacional,
-substituindo os stubs de `GameAnalysisService`).
+Nenhuma tarefa pendente em [`TASKS.md`](TASKS.md) — todas as fases (1–7) concluídas, módulo administrador e
+configurações completos. Trabalho futuro fica a critério do time (ex.: análise de vídeo real via visão
+computacional, substituindo os stubs de `GameAnalysisService`).
 
 ---
 

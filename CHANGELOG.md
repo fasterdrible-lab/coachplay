@@ -1,5 +1,23 @@
 # Changelog — Coach Play
 
+## [0.29.0] — 2026-07-17
+
+### Added
+- `(dashboard)/settings/page.tsx` — tela de Configurações completa, substituindo o stub ("Task 2.x"):
+  - Nome da conta (`PUT /users/:id`)
+  - Nível de feedback (simples/normal/detalhado), modo de jogo favorito (mesma lista de modos EA FC do formulário de nova partida), feedback por voz (toggle) e idioma — tudo já suportado pelo backend (`UserPreferences`), só nunca tinha tela
+  - Estados de carregamento, erro e confirmação de salvamento; testado de ponta a ponta (alterar → salvar → reload → confere que persistiu)
+
+### Fixed
+- **Build da API no Vercel/CI**: `nest build` rodava sem `prisma generate` antes, então `@prisma/client` ficava com o client "stub" genérico sem nenhum enum/model do schema (17 erros `TS2305`/`TS2694`). Adicionado `postinstall: prisma generate` e `build: prisma generate && nest build`
+- **Timeout em todas as chamadas da API do frontend** (`lib/api.ts`, 15s) — sem isso, uma requisição pendurada (ex.: servidor reiniciando no meio de uma chamada) travava o `AuthProvider` no estado de carregamento para sempre, já que `/auth/me` nunca resolvia nem rejeitava
+- `next.config.mjs` — `onDemandEntries` com janela de inatividade maior (1h) e mais páginas em buffer, reduzindo recompilações ao alternar entre abas/rotas em dev
+
+### Notes
+- A API (`apps/api`) não é adequada para o modelo serverless do Vercel — roda worker BullMQ persistente, spawna FFmpeg e grava vídeo em disco local. Documentado em `docs/DEPLOY.md`; o caminho de produção recomendado continua sendo o VPS via `docker-compose.prod.yml`
+
+---
+
 ## [0.28.0] — 2026-07-17
 
 ### Added
