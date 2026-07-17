@@ -17,6 +17,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { CaptureSessionsModule } from './modules/capture-sessions/capture-sessions.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { AdminModule } from './modules/admin/admin.module';
     AuditLogsModule,
     SettingsModule,
     AdminModule,
+    CaptureSessionsModule,
   ],
   providers: [
     // ThrottlerGuard precisa vir primeiro: aplica o rate limit antes de qualquer verificação de auth

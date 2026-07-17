@@ -1,8 +1,8 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.32.0
+**Versão:** V.0.33.0
 **Data:** 2026-07-17
-**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador + Configurações + Chaves de IA
+**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fase 1)
 
 ---
 
@@ -380,11 +380,24 @@
 
 ---
 
+### Captura via Remote Play — Fase 1 (pós Fase 7)
+
+Base do novo módulo que permite analisar partidas do Xbox capturando a tela do PC via Xbox
+Remote Play oficial (sem engenharia reversa, sem acesso a memória/API privada, sem automação de
+jogo). Plano completo, riscos e próximas fases em [`docs/REMOTE_PLAY_CAPTURE.md`](REMOTE_PLAY_CAPTURE.md).
+
+- [x] Prisma: `CaptureSession`, `FrameSample`, `VideoSegment`, `CoachFeedback` + `GameEvent` linkado ao novo pipeline
+- [x] `CaptureSessionsModule` (backend): lifecycle da sessão, ingestão de frames/segmentos, leitura de eventos/feedbacks — 12 testes
+- [x] `apps/desktop` (novo workspace Electron + TypeScript): state machine de sessão, servidor HTTP local (`127.0.0.1`), seleção de fonte via `desktopCapturer`, preview ao vivo via `getUserMedia`, tela de consentimento, controles start/pause/stop — 15 testes, build (`tsc` + `esbuild`) validado
+- [ ] Fase 2+ (Game State Detector, Event Detector, feedback textual/voz, modelo próprio) — documentado no plano, não implementado
+- [ ] Validação manual em Windows real com Xbox Remote Play — não foi possível testar neste ambiente de desenvolvimento (sem GUI/console)
+
 ## Próxima tarefa
 
-Nenhuma tarefa pendente em [`TASKS.md`](TASKS.md) — todas as fases (1–7) concluídas, módulo administrador e
-configurações completos. Trabalho futuro fica a critério do time (ex.: análise de vídeo real via visão
-computacional, substituindo os stubs de `GameAnalysisService`).
+Validar manualmente o módulo de Captura via Remote Play em um PC Windows com o Xbox Remote Play
+aberto (seleção de janela, preview, start/pause/stop) — é o único pedaço que não pôde ser testado
+neste ambiente. Depois disso, próximo passo natural é a Fase 2 do plano (Game State Detector +
+Event Detector com heurísticas simples).
 
 ---
 

@@ -5,27 +5,25 @@
 Coach Play é um **monolito modular** com Clean Architecture e Domain-Driven Design. A separação em módulos garante fronteiras claras entre domínios sem a complexidade de microsserviços.
 
 ```
-[Usuário / Browser]
-        │
-        ▼
-[Next.js Frontend — Port 3000]
-        │ HTTP (REST)
-        ▼
-[NestJS API — Port 3001]
-   ├── Auth Module
-   ├── Users Module
-   ├── Matches Module
-   ├── Video Capture Module
-   ├── Game Analysis Module  ──► [FFmpeg / Frames]
-   ├── AI Coach Module       ──► [Claude API / OpenAI API]
-   ├── Reports Module
-   ├── Plans Module
-   ├── Audit Logs Module (leitura + escrita — @Global)
-   ├── Admin Module          ──► agrega Users/Matches/AIAnalysis/AuditLog
-   └── Settings Module
-        │
-        ├── PostgreSQL (Prisma ORM)
-        └── Redis (BullMQ — filas de processamento)
+[Coach Play Desktop — Electron, apps/desktop]  ──HTTPS/JWT──┐
+        │ (Xbox Remote Play na tela do PC)                  │
+        ▼                                                    ▼
+[Usuário / Browser]                                [NestJS API — Port 3001]
+        │                                             ├── Auth Module
+        ▼                                             ├── Users Module
+[Next.js Frontend — Port 3000]                         ├── Matches Module
+        │ HTTP (REST)                                  ├── Video Capture Module
+        └──────────────────────────────────────────►   ├── Game Analysis Module  ──► [FFmpeg / Frames]
+                                                        ├── AI Coach Module       ──► [Claude / GPT-4o / DeepSeek]
+                                                        ├── Capture Sessions Module ──► ver docs/REMOTE_PLAY_CAPTURE.md
+                                                        ├── Reports Module
+                                                        ├── Plans Module
+                                                        ├── Audit Logs Module (leitura + escrita — @Global)
+                                                        ├── Admin Module          ──► agrega Users/Matches/AIAnalysis/AuditLog
+                                                        └── Settings Module
+                                                             │
+                                                             ├── PostgreSQL (Prisma ORM)
+                                                             └── Redis (BullMQ — filas de processamento)
 ```
 
 ---
@@ -209,6 +207,30 @@ AiCoachService
 ```
 
 `GET`/`PUT /settings/ai-provider` — `@Roles('admin')`. UI em `(admin)/admin/usage`.
+
+---
+
+## Módulo Capture Sessions + apps/desktop
+
+Plano completo (arquitetura, modelagem, riscos, roadmap por fases) em
+[`docs/REMOTE_PLAY_CAPTURE.md`](REMOTE_PLAY_CAPTURE.md). Resumo:
+
+```
+apps/desktop (Electron)              apps/api
+  captura tela (consentimento)         CaptureSessionsModule
+  desktopCapturer + getUserMedia  ──►    POST /capture-sessions
+  state machine local                    PATCH .../{pause,resume,stop}
+  servidor HTTP 127.0.0.1                GET .../status
+  (/local/capture/*)                     POST .../{frames,segments}
+                                        MatchEventsController
+                                          GET /matches/:id/events
+                                          GET /matches/:id/feedbacks
+```
+
+Só captura pixels da tela (janela/monitor/região autorizados) — nenhuma integração com
+protocolo do Xbox, memória do jogo ou API privada da EA. Fase 1 (atual): grava sessão,
+frames e clipes; Fases 2–4 (roadmap, não implementadas): detecção de estado de partida,
+eventos, feedback de IA e voz.
 
 ---
 

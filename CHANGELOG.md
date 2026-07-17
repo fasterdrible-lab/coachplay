@@ -1,5 +1,23 @@
 # Changelog — Coach Play
 
+## [0.33.0] — 2026-07-17
+
+### Added
+- **Novo módulo: Captura via Remote Play** — base do app desktop que permite analisar partidas de EA FC no Xbox capturando a tela do PC (Xbox Remote Play oficial), sempre com consentimento explícito e sem qualquer engenharia reversa do console. Plano completo em `docs/REMOTE_PLAY_CAPTURE.md`.
+- **Backend — `CaptureSessionsModule`** (novo): lifecycle completo de sessão de captura (`POST /capture-sessions`, `PATCH .../pause|resume|stop`, `GET .../status`), ingestão de frames e segmentos (`POST .../frames`, `POST .../segments`) e leitura de eventos/feedbacks por partida (`GET /matches/:id/events`, `GET /matches/:id/feedbacks`). State machine de status (`starting→running↔paused→stopped|failed`) validada no service; 12 novos testes.
+- **Prisma**: 4 modelos novos (`CaptureSession`, `FrameSample`, `VideoSegment`, `CoachFeedback`) + `GameEvent` ganhou `captureSessionId`/`segmentId`/`evidence` para linkar com o novo pipeline sem quebrar o fluxo de upload de vídeo já existente.
+- **`apps/desktop`** (novo workspace, Electron + TypeScript): app desktop de captura —
+  - `capture-session-state.ts`: state machine pura da sessão local (sem dependência do Electron, 100% testável)
+  - `local-server.ts`: servidor HTTP em `127.0.0.1` (só loopback) expondo `/local/capture/{sources,start,pause,stop,preview,health}`
+  - `capture-session-manager.ts`: liga a state machine ao `desktopCapturer` do Electron e ao backend (`BackendClient`)
+  - `frame-buffer.ts`: buffer circular (30s) com descarte automático de frames temporários
+  - Renderer React: tela de consentimento (obrigatória antes de qualquer captura), seletor de fonte (janela/monitor, com preview em miniatura), preview ao vivo via `getUserMedia`, controles de pausar/retomar/encerrar
+  - 15 testes automatizados (state machine + rotas do servidor local) — build completo (`tsc` + `esbuild`) validado
+
+### Notes
+- Captura real de uma janela do Xbox Remote Play **não foi testada neste ambiente de desenvolvimento** (sem GUI Windows nem Xbox Remote Play instalado) — precisa de validação manual no PC do usuário antes de considerar o MVP pronto. Ver "Riscos e limitações" em `docs/REMOTE_PLAY_CAPTURE.md`.
+- Fases 2–4 (Game State Detector, Event Detector, IA de feedback, voz, modelo próprio) ficam documentadas no roadmap do plano, mas não implementadas nesta rodada — schema e endpoints de leitura já preparados para receber esses dados quando existirem.
+
 ## [0.32.0] — 2026-07-17
 
 ### Added
