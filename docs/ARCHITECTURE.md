@@ -167,12 +167,48 @@ GET /admin/usage?page=&limit=
 GET /audit-logs?page=&limit=&module=&action=
   └─► Leitura paginada do AuditLog (módulo antes só tinha escrita)
 
-GET /users, PATCH /users/:id/status
+GET /users, PATCH /users/:id/status, DELETE /users/:id
   └─► Reaproveitados do Users Module — sem endpoints próprios de gestão de usuário no Admin
+      (DELETE já existia no Users Module desde antes; só ganhou botão na tela admin depois)
+
+DELETE /audit-logs/:id
+  └─► Exclusão definitiva (sem soft delete — AuditLog não carrega esse campo)
+
+GET/PUT /settings/ai-provider
+  └─► Settings Module — status e configuração das chaves de IA (ver seção própria abaixo)
 ```
 
-Frontend: `(admin)/admin` (overview), `/admin/users` (bloquear/ativar), `/admin/logs`
-(filtro por módulo + detalhe expansível), `/admin/usage` (custo por usuário).
+Frontend: `(admin)/admin` (overview), `/admin/users` (menu suspenso: bloquear/ativar, excluir),
+`/admin/logs` (filtro por módulo, detalhe expansível, seleção múltipla + exclusão em massa,
+exclusão individual), `/admin/usage` (custo por usuário + configuração de chaves de IA).
+
+---
+
+## Módulo Settings — chaves de provedores de IA
+
+Permite configurar, pelo painel admin, as chaves de API usadas pelo AI Coach (Anthropic,
+OpenAI, DeepSeek) sem depender só de variável de ambiente.
+
+```
+AppSetting (Prisma, linha única id="global")
+  anthropicApiKey / openaiApiKey / deepSeekApiKey  — armazenados como "iv:authTag:ciphertext"
+  (AES-256-GCM; chave de criptografia = sha256(JWT_SECRET), sem env var adicional)
+
+SettingsService
+  getAiProviderStatus()     → status por provedor: configurado (painel|env var), preview mascarado
+  updateAiProviderKeys(dto) → salva (string) ou remove (string vazia) cada chave
+  getAnthropicKey() / getOpenAiKey() / getDeepSeekKey()
+      → painel tem prioridade; cai para a variável de ambiente correspondente se não houver nada salvo
+
+AiCoachService
+  → não guarda mais os clients Anthropic/OpenAI no construtor; cria um novo client por chamada,
+    já com a chave resolvida via SettingsService — uma chave nova no painel vale na próxima
+    análise, sem reiniciar o servidor
+  → loop sobre 3 provedores em cascata: Claude Sonnet 4.6 → GPT-4o → DeepSeek
+    (DeepSeek usa a própria SDK "openai", só trocando baseURL para api.deepseek.com)
+```
+
+`GET`/`PUT /settings/ai-provider` — `@Roles('admin')`. UI em `(admin)/admin/usage`.
 
 ---
 
@@ -196,6 +232,10 @@ Tema único (dark-only) — decisão deliberada, sem variante clara.
 ```
 
 O manual do usuário (`apps/web/public/manual.html`) usa a mesma paleta.
+
+`components/ui/dropdown-menu.tsx` — menu suspenso genérico (trigger + itens + separador),
+fecha ao clicar fora ou `Esc`, variante `danger` para ações destrutivas. Usado em
+`/admin/users` para agrupar bloquear/ativar e excluir em um único menu (ícone `⋮`).
 
 ---
 

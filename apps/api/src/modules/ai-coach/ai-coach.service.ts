@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { AIAnalysis, AIAnalysisStatus, DetectedError, GameEvent } from '@prisma/client';
 import { PrismaService } from '../../shared/database/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 const OPENAI_MODEL = 'gpt-4o';
+const DEEPSEEK_MODEL = 'deepseek-chat';
+const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 const PROMPT_VERSION = '1.0.0';
 
 // Preços por token (USD) — claude-sonnet-4-6: $3/M input, $15/M output
@@ -15,6 +17,9 @@ const CLAUDE_OUT = 15.0 / 1_000_000;
 // gpt-4o: ~$2.50/M input, $10/M output
 const GPT4O_IN = 2.5 / 1_000_000;
 const GPT4O_OUT = 10.0 / 1_000_000;
+// deepseek-chat (cache miss): ~$0.27/M input, $1.10/M output
+const DEEPSEEK_IN = 0.27 / 1_000_000;
+const DEEPSEEK_OUT = 1.1 / 1_000_000;
 
 interface AiResult {
   summary: string;
@@ -26,20 +31,11 @@ interface AiResult {
 @Injectable()
 export class AiCoachService {
   private readonly logger = new Logger(AiCoachService.name);
-  private readonly anthropic: Anthropic;
-  private readonly openai: OpenAI;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
-  ) {
-    this.anthropic = new Anthropic({
-      apiKey: this.config.get<string>('ANTHROPIC_API_KEY', ''),
-    });
-    this.openai = new OpenAI({
-      apiKey: this.config.get<string>('OPENAI_API_KEY', ''),
-    });
-  }
+    private readonly settings: SettingsService,
+  ) {}
 
   async analyzeMatch(matchId: string): Promise<AIAnalysis> {
     const [gameEvents, detectedErrors] = await Promise.all([
@@ -73,34 +69,42 @@ export class AiCoachService {
 
     const prompt = this.buildPrompt(gameEvents, detectedErrors);
 
-    let result: AiResult;
-    let modelUsed: string;
-    let costEstimate: number;
+    const providers: Array<{
+      model: string;
+      call: () => Promise<AiResult>;
+      priceIn: number;
+      priceOut: number;
+    }> = [
+      { model: ANTHROPIC_MODEL, call: () => this.callClaude(prompt), priceIn: CLAUDE_IN, priceOut: CLAUDE_OUT },
+      { model: OPENAI_MODEL, call: () => this.callGpt4o(prompt), priceIn: GPT4O_IN, priceOut: GPT4O_OUT },
+      { model: DEEPSEEK_MODEL, call: () => this.callDeepSeek(prompt), priceIn: DEEPSEEK_IN, priceOut: DEEPSEEK_OUT },
+    ];
 
-    try {
-      result = await this.callClaude(prompt);
-      modelUsed = ANTHROPIC_MODEL;
-      costEstimate = result.inputTokens * CLAUDE_IN + result.outputTokens * CLAUDE_OUT;
-      this.logger.log(`Match ${matchId}: análise concluída com Claude Sonnet 4.6`);
-    } catch (claudeErr) {
-      this.logger.warn(
-        `Match ${matchId}: Claude falhou (${(claudeErr as Error).message}) — usando GPT-4o`,
-      );
+    let result: AiResult | undefined;
+    let modelUsed = '';
+    let costEstimate = 0;
+    let lastError: Error | undefined;
+
+    for (const provider of providers) {
       try {
-        result = await this.callGpt4o(prompt);
-        modelUsed = OPENAI_MODEL;
-        costEstimate = result.inputTokens * GPT4O_IN + result.outputTokens * GPT4O_OUT;
-        this.logger.log(`Match ${matchId}: análise concluída com GPT-4o (fallback)`);
-      } catch (openaiErr) {
-        this.logger.error(
-          `Match ${matchId}: GPT-4o também falhou — ${(openaiErr as Error).message}`,
-        );
-        await this.prisma.aIAnalysis.update({
-          where: { matchId },
-          data: { status: AIAnalysisStatus.failed },
-        });
-        throw openaiErr;
+        result = await provider.call();
+        modelUsed = provider.model;
+        costEstimate = result.inputTokens * provider.priceIn + result.outputTokens * provider.priceOut;
+        this.logger.log(`Match ${matchId}: análise concluída com ${provider.model}`);
+        break;
+      } catch (err) {
+        lastError = err as Error;
+        this.logger.warn(`Match ${matchId}: ${provider.model} falhou (${lastError.message})`);
       }
+    }
+
+    if (!result) {
+      this.logger.error(`Match ${matchId}: todos os provedores de IA falharam — ${lastError?.message}`);
+      await this.prisma.aIAnalysis.update({
+        where: { matchId },
+        data: { status: AIAnalysisStatus.failed },
+      });
+      throw lastError;
     }
 
     return this.prisma.aIAnalysis.update({
@@ -116,7 +120,8 @@ export class AiCoachService {
   }
 
   private async callClaude(prompt: string): Promise<AiResult> {
-    const response = await this.anthropic.messages.create({
+    const anthropic = new Anthropic({ apiKey: await this.settings.getAnthropicKey() });
+    const response = await anthropic.messages.create({
       model: ANTHROPIC_MODEL,
       max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
@@ -136,8 +141,28 @@ export class AiCoachService {
   }
 
   private async callGpt4o(prompt: string): Promise<AiResult> {
-    const response = await this.openai.chat.completions.create({
+    const openai = new OpenAI({ apiKey: await this.settings.getOpenAiKey() });
+    const response = await openai.chat.completions.create({
       model: OPENAI_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1024,
+    });
+
+    const text = response.choices[0]?.message?.content ?? '';
+
+    return {
+      summary: text,
+      inputTokens: response.usage?.prompt_tokens ?? 0,
+      outputTokens: response.usage?.completion_tokens ?? 0,
+      rawResponse: text,
+    };
+  }
+
+  private async callDeepSeek(prompt: string): Promise<AiResult> {
+    // API do DeepSeek é compatível com o formato OpenAI — só troca a baseURL e o modelo.
+    const deepseek = new OpenAI({ apiKey: await this.settings.getDeepSeekKey(), baseURL: DEEPSEEK_BASE_URL });
+    const response = await deepseek.chat.completions.create({
+      model: DEEPSEEK_MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1024,
     });

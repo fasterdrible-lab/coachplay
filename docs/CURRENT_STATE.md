@@ -1,8 +1,8 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.29.0
+**Versão:** V.0.32.0
 **Data:** 2026-07-17
-**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador + Configurações
+**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador + Configurações + Chaves de IA
 
 ---
 
@@ -346,6 +346,29 @@
 - [x] Stub "Task 2.x" substituído por tela real: nome, nível de feedback, modo de jogo favorito, feedback por voz
   e idioma, usando o `UserPreferences` que já existia no backend desde a Fase 2 mas nunca tinha tela
 - [x] Testado de ponta a ponta: alterar campos → salvar → reload → confirma persistência no banco
+
+### Configuração de chaves de IA pelo admin (pós Fase 7)
+- [x] Modelo `AppSetting` (Prisma, linha única) armazena `anthropicApiKey`/`openaiApiKey`/`deepSeekApiKey` criptografados em AES-256-GCM (chave derivada de `JWT_SECRET`)
+- [x] `SettingsModule` (antes stub vazio) ganhou `SettingsService` + `SettingsController`:
+  - `GET /settings/ai-provider` — status por provedor (configurado via painel ou env var, preview mascarado)
+  - `PUT /settings/ai-provider` — salva (string) ou remove (string vazia) cada chave; `@Roles('admin')`
+- [x] `AiCoachService` refatorado para loop sobre 3 provedores (Claude → GPT-4o → **DeepSeek**), clients criados por chamada com a chave resolvida via `SettingsService` (painel tem prioridade, cai para env var) — uma chave nova entra em vigor na próxima análise, sem restart. DeepSeek reusa a SDK `openai` (API compatível) com `baseURL: https://api.deepseek.com` e modelo `deepseek-chat`
+- [x] UI em `(admin)/admin/usage/page.tsx`: 3 cards de status por provedor, campos para nova chave (nunca preenchidos com o valor real) e ação de remover
+- [x] 8 novos testes (`settings.service.spec.ts` + `ai-coach.service.spec.ts`); total agora 10 suites / 35 testes em `apps/api/src`
+- [x] Testado de ponta a ponta via Playwright: salvar chave (cada provedor) → reload → preview mascarado persiste → remover → volta a "não configurada"
+
+### Excluir usuário e log + menu suspenso (pós Fase 7)
+- [x] `(admin)/admin/users`: ação "Excluir usuário" adicionada, usando o `DELETE /users/:id` que já existia no backend (soft delete) mas não tinha botão na UI
+- [x] `(admin)/admin/logs`: nova coluna "Ação" com botão de excluir por linha; novo `DELETE /audit-logs/:id` no backend (`AuditLogsController`/`AuditLogsService`, hard delete — `@Roles('admin')`)
+- [x] Componente `DropdownMenu` novo (`components/ui/dropdown-menu.tsx`) — substitui o botão único de bloquear/ativar por um menu (⋮) com "Bloquear/Ativar usuário" e "Excluir usuário" (destrutivo, com confirmação)
+- [x] 2 novos testes de `AuditLogsService.remove`; total agora 37 testes em `apps/api/src`
+- [x] Testado de ponta a ponta via Playwright: exclusão de usuário e de log de auditoria, com confirmação nativa antes de cada ação
+
+### Selecionar tudo + exclusão em massa nos logs (pós Fase 7)
+- [x] `(admin)/admin/logs`: checkbox no cabeçalho da tabela seleciona/desmarca todas as linhas da página atual; fica com estado indeterminado quando a seleção é parcial
+- [x] Barra de ação (aparece só quando há seleção): contador de selecionados, "Excluir selecionados" (com confirmação) e "Cancelar"
+- [x] Exclusão em massa reusa o `DELETE /audit-logs/:id` existente via `Promise.allSettled` — nenhum endpoint novo; falhas parciais são reportadas
+- [x] Testado de ponta a ponta via Playwright: marcar tudo → desmarcar um (header vira indeterminado) → remarcar tudo → excluir selecionados → linhas somem e contador total decrementa corretamente
 
 ### Correções de infraestrutura (pós Fase 7)
 - [x] `apps/api/package.json` — `postinstall`/`build` agora rodam `prisma generate` antes de `nest build`;

@@ -1,7 +1,7 @@
-import { ConfigService } from '@nestjs/config';
 import { AIAnalysisStatus } from '@prisma/client';
 import { AiCoachService } from './ai-coach.service';
 import { PrismaService } from '../../shared/database/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 
 const mockAnthropicCreate = jest.fn();
 const mockOpenAiCreate = jest.fn();
@@ -40,9 +40,13 @@ describe('AiCoachService — fallback de IA', () => {
       },
     };
 
-    const config = { get: jest.fn().mockReturnValue('') } as unknown as ConfigService;
+    const settings = {
+      getAnthropicKey: jest.fn().mockResolvedValue('test-anthropic-key'),
+      getOpenAiKey: jest.fn().mockResolvedValue('test-openai-key'),
+      getDeepSeekKey: jest.fn().mockResolvedValue('test-deepseek-key'),
+    } as unknown as SettingsService;
 
-    service = new AiCoachService(prisma as unknown as PrismaService, config);
+    service = new AiCoachService(prisma as unknown as PrismaService, settings);
   });
 
   it('usa Claude Sonnet quando a chamada é bem-sucedida', async () => {
@@ -75,11 +79,28 @@ describe('AiCoachService — fallback de IA', () => {
     expect(result.status).toBe(AIAnalysisStatus.done);
   });
 
-  it('marca a análise como failed quando Claude e GPT-4o falham', async () => {
+  it('cai para DeepSeek quando Claude e GPT-4o falham', async () => {
     mockAnthropicCreate.mockRejectedValue(new Error('Claude indisponível'));
-    mockOpenAiCreate.mockRejectedValue(new Error('OpenAI também indisponível'));
+    mockOpenAiCreate
+      .mockRejectedValueOnce(new Error('GPT-4o indisponível'))
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: 'Resumo via DeepSeek' } }],
+        usage: { prompt_tokens: 60, completion_tokens: 30 },
+      });
 
-    await expect(service.analyzeMatch('match-1')).rejects.toThrow('OpenAI também indisponível');
+    const result = await service.analyzeMatch('match-1');
+
+    expect(mockOpenAiCreate).toHaveBeenCalledTimes(2);
+    expect(result.modelUsed).toBe('deepseek-chat');
+    expect(result.summary).toBe('Resumo via DeepSeek');
+    expect(result.status).toBe(AIAnalysisStatus.done);
+  });
+
+  it('marca a análise como failed quando todos os provedores falham', async () => {
+    mockAnthropicCreate.mockRejectedValue(new Error('Claude indisponível'));
+    mockOpenAiCreate.mockRejectedValue(new Error('Provedor indisponível'));
+
+    await expect(service.analyzeMatch('match-1')).rejects.toThrow('Provedor indisponível');
 
     expect(prisma.aIAnalysis.update).toHaveBeenCalledWith({
       where: { matchId: 'match-1' },

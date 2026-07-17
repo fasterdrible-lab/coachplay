@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { FindAuditLogsQueryDto } from './dto/find-audit-logs-query.dto';
@@ -65,5 +65,12 @@ export class AuditLogsService {
     ]);
 
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async remove(id: string): Promise<void> {
+    const exists = await this.prisma.auditLog.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException('Log de auditoria não encontrado');
+
+    await this.prisma.auditLog.delete({ where: { id } });
   }
 }

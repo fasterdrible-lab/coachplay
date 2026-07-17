@@ -313,3 +313,13 @@ model PasswordResetToken {
   @@index([userId])
   @@map("password_reset_tokens")
 }
+
+model AppSetting {
+  id               String   @id @default("global")
+  anthropicApiKey  String?  @map("anthropic_api_key")
+  openaiApiKey     String?  @map("openai_api_key")
+  deepSeekApiKey   String?  @map("deepseek_api_key")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}

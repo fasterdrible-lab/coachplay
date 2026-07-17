@@ -1,5 +1,40 @@
 # Changelog — Coach Play
 
+## [0.32.0] — 2026-07-17
+
+### Added
+- **Selecionar tudo + exclusão em massa** em `(admin)/admin/logs`: checkbox no cabeçalho (com estado indeterminado quando só parte das linhas da página está marcada) e um por linha; barra de ação aparece quando há seleção, com "Excluir selecionados (N)" e "Cancelar". Reusa o `DELETE /audit-logs/:id` já existente — sem endpoint novo, os itens selecionados são excluídos em paralelo (`Promise.allSettled`) e o contador de falhas é reportado se algum não puder ser excluído
+- Seleção é limitada à página atual (paginação de 15) e é limpa automaticamente ao trocar de página/filtro ou após a exclusão
+
+### Fixed
+- **`.gitignore` derrubava silenciosamente a rota `/admin/logs` do controle de versão**: o padrão `logs/` (pensado para uma pasta de log em runtime) também casava com `apps/web/src/app/(admin)/admin/logs/`, então esse arquivo nunca foi commitado desde que foi criado no módulo admin. Corrigido para `/logs/` (âncora só na raiz do projeto); `admin/logs/page.tsx` entra no controle de versão pela primeira vez nesta versão
+
+## [0.31.0] — 2026-07-17
+
+### Added
+- **Excluir usuário** (admin): `DELETE /api/v1/users/:id` já existia no backend (soft delete via `deletedAt`) mas não tinha botão na tela `(admin)/admin/users`. Adicionado como item do novo menu suspenso
+- **Excluir log de auditoria** (admin): novo `DELETE /api/v1/audit-logs/:id` (`@Roles('admin')`, hard delete — logs não têm soft delete) + `AuditLogsService.remove()`; botão de lixeira em cada linha de `(admin)/admin/logs`
+- **Componente `DropdownMenu`** (`components/ui/dropdown-menu.tsx`) — novo, reutilizável: trigger customizável, fecha ao clicar fora ou `Esc`, item com variante `danger`, separador. Substitui o botão único "Bloquear/Ativar" da tela de usuários por um menu (ícone `⋮`) com "Bloquear/Ativar usuário" e "Excluir usuário" (vermelho, com confirmação)
+- 2 novos testes (`audit-logs.service.spec.ts`) cobrindo exclusão de log existente e `NotFoundException` para log inexistente; total agora 37 testes
+
+### Notes
+- Ambas as exclusões pedem confirmação nativa do navegador (`window.confirm`) antes de executar — sem componente de modal customizado, para não introduzir uma dependência nova só para isso
+- Testado de ponta a ponta via Playwright: abrir menu → excluir usuário de teste → linha some da tabela e contador decrementa; excluir log → linha some e contador decrementa
+
+## [0.30.0] — 2026-07-17
+
+### Added
+- **Configuração de chaves de IA pelo painel admin** — a tela "Uso & IA" agora permite salvar/remover as chaves de API do Anthropic Claude, OpenAI GPT-4o e **DeepSeek** sem depender só de variáveis de ambiente:
+  - Novo modelo `AppSetting` (Prisma, linha única `id: "global"`) armazenando `anthropicApiKey`/`openaiApiKey`/`deepSeekApiKey` **criptografados com AES-256-GCM** (chave derivada de `JWT_SECRET` — sem precisar de mais uma variável de ambiente)
+  - `SettingsModule` (antes um stub vazio) ganhou `SettingsService` (`getAiProviderStatus`, `updateAiProviderKeys`, `getAnthropicKey`/`getOpenAiKey`/`getDeepSeekKey` com fallback para env var) e `SettingsController` (`GET`/`PUT /api/v1/settings/ai-provider`, `@Roles('admin')`)
+  - `AiCoachService` refatorado de dois níveis de try/catch (Claude → GPT-4o) para um **loop sobre 3 provedores** (Claude → GPT-4o → DeepSeek); os clients deixaram de ser construídos uma vez no construtor (lendo só env var) e passaram a ser criados a cada chamada com a chave resolvida via `SettingsService` — uma chave configurada pelo painel entra em vigor na próxima análise, sem reiniciar o servidor
+  - DeepSeek usa a própria SDK `openai` (API compatível), só trocando `baseURL` para `https://api.deepseek.com` e o modelo para `deepseek-chat`
+  - UI em `(admin)/admin/usage/page.tsx`: status por provedor (configurada via painel/env var, com preview mascarado tipo `sk-a••••cdef`), campos para nova chave (`type="password"`, nunca preenchidos com o valor real) e ação de remover — grid de 3 colunas
+  - 8 novos testes (`settings.service.spec.ts` + `ai-coach.service.spec.ts`) cobrindo status não configurado, fallback de env var, criptografar/decifrar/mascarar, remoção via string vazia e fallback em cascata Claude → GPT-4o → DeepSeek
+
+### Fixed
+- **Servidor de API em dev rodando um build antigo**: um processo `node dist/src/main` (sobra de teste de deploy anterior) estava com o lock da porta 3001, então o dev server real (`nest start --watch`) subia mas nunca respondia — todo o tráfego local ia para o bundle compilado desatualizado. Processos zumbis encerrados e um `dev:api` limpo reiniciado
+
 ## [0.29.0] — 2026-07-17
 
 ### Added

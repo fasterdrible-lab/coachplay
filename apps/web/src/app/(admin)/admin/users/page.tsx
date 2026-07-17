@@ -10,9 +10,12 @@ import {
   AlertCircle,
   Ban,
   CheckCircle2,
+  MoreVertical,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../../../../lib/api';
 import { Button } from '../../../../components/ui/button';
+import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '../../../../components/ui/dropdown-menu';
 import { cn } from '../../../../lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -111,6 +114,29 @@ export default function AdminUsersPage() {
       );
     } catch {
       setActionError('Não foi possível atualizar o status deste usuário.');
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function deleteUser(user: AdminUser) {
+    if (!window.confirm(`Excluir a conta de ${user.name}? Essa ação não pode ser desfeita.`)) return;
+
+    setPendingId(user.id);
+    setActionError('');
+    try {
+      await api.delete(`/users/${user.id}`);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              data: prev.data.filter((u) => u.id !== user.id),
+              total: prev.total - 1,
+            }
+          : prev,
+      );
+    } catch {
+      setActionError('Não foi possível excluir este usuário.');
     } finally {
       setPendingId(null);
     }
@@ -217,26 +243,24 @@ export default function AdminUsersPage() {
                         <td className="px-5 py-3.5 text-right">
                           {user.role === 'admin' ? (
                             <span className="text-xs text-[#f8f8fc]/35">—</span>
+                          ) : pendingId === user.id ? (
+                            <Loader2 className="ml-auto h-4 w-4 animate-spin text-[#f8f8fc]/45" />
                           ) : (
-                            <button
-                              onClick={() => toggleStatus(user)}
-                              disabled={pendingId === user.id}
-                              className={cn(
-                                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
-                                isBlocked
-                                  ? 'bg-[#6fcf97]/15 text-[#6fcf97] hover:bg-[#6fcf97]/25'
-                                  : 'bg-[#e2718a]/15 text-[#e2718a] hover:bg-[#e2718a]/25',
-                              )}
-                            >
-                              {pendingId === user.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : isBlocked ? (
-                                <CheckCircle2 className="h-3 w-3" />
-                              ) : (
-                                <Ban className="h-3 w-3" />
-                              )}
-                              {isBlocked ? 'Ativar' : 'Bloquear'}
-                            </button>
+                            <DropdownMenu trigger={<MoreVertical className="h-4 w-4" />}>
+                              <DropdownMenuItem onClick={() => toggleStatus(user)}>
+                                {isBlocked ? (
+                                  <CheckCircle2 className="h-4 w-4 text-[#6fcf97]" />
+                                ) : (
+                                  <Ban className="h-4 w-4 text-[#e0954a]" />
+                                )}
+                                {isBlocked ? 'Ativar usuário' : 'Bloquear usuário'}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem danger onClick={() => deleteUser(user)}>
+                                <Trash2 className="h-4 w-4" />
+                                Excluir usuário
+                              </DropdownMenuItem>
+                            </DropdownMenu>
                           )}
                         </td>
                       </tr>
