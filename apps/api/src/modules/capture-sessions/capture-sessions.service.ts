@@ -1,4 +1,6 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { CaptureSessionStatus } from '@prisma/client';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { AuthUser } from '../../shared/types/auth-user.type';
@@ -7,6 +9,11 @@ import { StopCaptureSessionDto } from './dto/stop-capture-session.dto';
 import { CreateFrameSampleDto } from './dto/create-frame-sample.dto';
 import { CreateVideoSegmentDto } from './dto/create-video-segment.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import {
+  CAPTURE_FRAME_ANALYSIS_JOB,
+  CAPTURE_FRAME_ANALYSIS_QUEUE,
+  CaptureFrameAnalysisJobData,
+} from './capture-frame-analysis.constants';
 
 // Transições válidas da state machine de uma sessão de captura.
 // Espelha a mesma lógica usada no state machine puro do app desktop
@@ -22,9 +29,12 @@ const VALID_TRANSITIONS: Record<CaptureSessionStatus, CaptureSessionStatus[]> = 
 
 @Injectable()
 export class CaptureSessionsService {
+  private readonly logger = new Logger(CaptureSessionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLogs: AuditLogsService,
+    @InjectQueue(CAPTURE_FRAME_ANALYSIS_QUEUE) private readonly frameAnalysisQueue: Queue,
   ) {}
 
   async create(dto: CreateCaptureSessionDto, currentUser: AuthUser) {
@@ -78,7 +88,7 @@ export class CaptureSessionsService {
 
     const framePath = `/uploads/frames/${file.filename}`;
 
-    return this.prisma.frameSample.create({
+    const sample = await this.prisma.frameSample.create({
       data: {
         captureSessionId: id,
         timestampMs: dto.timestampMs,
@@ -87,6 +97,21 @@ export class CaptureSessionsService {
         height: dto.height,
       },
     });
+
+    // Best-effort: o frame já está persistido: se a fila falhar ao aceitar o job, essa amostra
+    // simplesmente nunca ganha gameState/confidence — não é motivo para falhar o upload.
+    try {
+      await this.frameAnalysisQueue.add(CAPTURE_FRAME_ANALYSIS_JOB, {
+        frameSampleId: sample.id,
+        captureSessionId: id,
+        absoluteFramePath: file.path,
+        timestampMs: dto.timestampMs,
+      } satisfies CaptureFrameAnalysisJobData);
+    } catch (err) {
+      this.logger.warn(`Falha ao enfileirar análise do frame ${sample.id} (${(err as Error).message})`);
+    }
+
+    return sample;
   }
 
   async addSegment(id: string, dto: CreateVideoSegmentDto, file: Express.Multer.File, currentUser: AuthUser) {

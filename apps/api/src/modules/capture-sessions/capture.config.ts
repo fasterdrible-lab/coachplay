@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { diskStorage, FileFilterCallback } from 'multer';
-import { extname, join } from 'path';
+import { basename, extname, join } from 'path';
 import { mkdirSync } from 'fs';
 import { Request } from 'express';
 
@@ -23,6 +23,15 @@ export const frameStorage = diskStorage({
     cb(null, `${sessionId}-${Date.now()}${ext}`);
   },
 });
+
+// Reconstrói o caminho absoluto em disco a partir do framePath público salvo em FrameSample
+// (`/uploads/frames/<arquivo>`) — usado pelo capture-frame-analysis.worker.ts para ler pixels do
+// frame anterior com `sharp` (o frame atual já chega ao worker com o caminho absoluto do Multer,
+// só o anterior precisa ser reconstruído a partir do banco).
+export function resolveAbsoluteFramePath(framePath: string): string {
+  const uploadDir = process.env.UPLOAD_DIR ?? 'uploads';
+  return join(process.cwd(), uploadDir, 'frames', basename(framePath));
+}
 
 export const frameFileFilter = (
   _req: Request,

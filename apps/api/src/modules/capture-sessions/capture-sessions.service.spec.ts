@@ -17,6 +17,7 @@ describe('CaptureSessionsService', () => {
     coachFeedback: { findMany: jest.Mock };
   };
   let auditLogs: Partial<AuditLogsService>;
+  let frameAnalysisQueue: { add: jest.Mock };
   let service: CaptureSessionsService;
 
   beforeEach(() => {
@@ -29,9 +30,11 @@ describe('CaptureSessionsService', () => {
       coachFeedback: { findMany: jest.fn() },
     };
     auditLogs = { log: jest.fn() };
+    frameAnalysisQueue = { add: jest.fn().mockResolvedValue(undefined) };
     service = new CaptureSessionsService(
       prisma as unknown as PrismaService,
       auditLogs as AuditLogsService,
+      frameAnalysisQueue as any,
     );
   });
 
@@ -111,7 +114,7 @@ describe('CaptureSessionsService', () => {
   });
 
   describe('addFrame / addSegment', () => {
-    const file = { filename: 'frame-1.png' } as Express.Multer.File;
+    const file = { filename: 'frame-1.png', path: 'C:\\uploads\\frames\\frame-1.png' } as Express.Multer.File;
 
     it('grava o frame com o caminho público esperado', async () => {
       prisma.captureSession.findUnique.mockResolvedValue({ id: 's1', userId: owner.id, status: 'running' });
@@ -124,6 +127,31 @@ describe('CaptureSessionsService', () => {
           data: expect.objectContaining({ framePath: '/uploads/frames/frame-1.png', timestampMs: 1000 }),
         }),
       );
+    });
+
+    it('enfileira a análise do frame com o payload esperado', async () => {
+      prisma.captureSession.findUnique.mockResolvedValue({ id: 's1', userId: owner.id, status: 'running' });
+      prisma.frameSample.create.mockResolvedValue({ id: 'f1' });
+
+      await service.addFrame('s1', { timestampMs: 1000 } as any, file, owner);
+
+      expect(frameAnalysisQueue.add).toHaveBeenCalledWith(
+        'analyze-frame',
+        expect.objectContaining({
+          frameSampleId: 'f1',
+          captureSessionId: 's1',
+          absoluteFramePath: file.path,
+          timestampMs: 1000,
+        }),
+      );
+    });
+
+    it('não rejeita addFrame quando o enfileiramento falha (best-effort)', async () => {
+      prisma.captureSession.findUnique.mockResolvedValue({ id: 's1', userId: owner.id, status: 'running' });
+      prisma.frameSample.create.mockResolvedValue({ id: 'f1' });
+      frameAnalysisQueue.add.mockRejectedValue(new Error('redis indisponível'));
+
+      await expect(service.addFrame('s1', { timestampMs: 1000 } as any, file, owner)).resolves.toEqual({ id: 'f1' });
     });
 
     it('rejeita segmento cujo fim é anterior ou igual ao início', async () => {

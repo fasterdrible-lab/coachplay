@@ -1,15 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { AIAnalysis, AIAnalysisStatus, DetectedError, GameEvent } from '@prisma/client';
+import { AIAnalysis, AIAnalysisStatus, CoachFeedback, DetectedError, FeedbackChannel, GameEvent } from '@prisma/client';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { SettingsService } from '../settings/settings.service';
+import { getTipsPerMinuteCap } from './feedback-level.util';
 
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 const OPENAI_MODEL = 'gpt-4o';
 const DEEPSEEK_MODEL = 'deepseek-chat';
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 const PROMPT_VERSION = '1.0.0';
+const EVENT_FEEDBACK_MAX_TOKENS = 120;
+const TIPS_PER_MINUTE_WINDOW_MS = 60_000;
 
 // Preços por token (USD) — claude-sonnet-4-6: $3/M input, $15/M output
 const CLAUDE_IN = 3.0 / 1_000_000;
@@ -119,11 +122,76 @@ export class AiCoachService {
     });
   }
 
-  private async callClaude(prompt: string): Promise<AiResult> {
+  // Fase 2 — captura em tempo real: transforma UM evento de alta confiança (heurística de motion,
+  // ver event-detector.service.ts) numa dica curta, em vez do resumo pós-jogo de analyzeMatch.
+  // Nunca lança: uma dica perdida não pode derrubar o job de análise de frame que a chama.
+  async generateEventFeedback(
+    event: GameEvent,
+    captureSessionId: string,
+    feedbackLevel: string | null,
+  ): Promise<CoachFeedback | null> {
+    const cap = getTipsPerMinuteCap(feedbackLevel);
+    if (cap === 0) return null;
+
+    const since = new Date(Date.now() - TIPS_PER_MINUTE_WINDOW_MS);
+    const recentCount = await this.prisma.coachFeedback.count({
+      where: { event: { captureSessionId }, createdAt: { gte: since } },
+    });
+    if (recentCount >= cap) {
+      this.logger.debug(`Sessão ${captureSessionId}: cap de dicas/min atingido (${recentCount}/${cap})`);
+      return null;
+    }
+
+    const prompt = this.buildEventPrompt(event);
+    const providers: Array<() => Promise<AiResult>> = [
+      () => this.callClaude(prompt, EVENT_FEEDBACK_MAX_TOKENS),
+      () => this.callGpt4o(prompt, EVENT_FEEDBACK_MAX_TOKENS),
+      () => this.callDeepSeek(prompt, EVENT_FEEDBACK_MAX_TOKENS),
+    ];
+
+    let result: AiResult | undefined;
+    for (const call of providers) {
+      try {
+        result = await call();
+        break;
+      } catch (err) {
+        this.logger.warn(`Evento ${event.id}: provedor falhou ao gerar feedback (${(err as Error).message})`);
+      }
+    }
+
+    if (!result || !result.summary.trim()) {
+      this.logger.warn(`Evento ${event.id}: todos os provedores de IA falharam ao gerar feedback`);
+      return null;
+    }
+
+    return this.prisma.coachFeedback.create({
+      data: {
+        matchId: event.matchId,
+        eventId: event.id,
+        feedbackType: 'live_tip',
+        message: result.summary.trim(),
+        confidence: event.confidence,
+        deliveredChannel: FeedbackChannel.text,
+        deliveredAt: new Date(),
+      },
+    });
+  }
+
+  private buildEventPrompt(event: GameEvent): string {
+    return `Você é um coach de EA FC (FIFA) dando uma dica rápida durante a partida, em português.
+
+Um evento provável foi detectado automaticamente (heurística de movimento na tela, pode ser
+impreciso): ${event.description ?? event.category}
+
+Responda em UMA frase curta (máximo 20 palavras), direta e prática, como se estivesse falando com o
+jogador em tempo real. Não mencione que a detecção é automática ou pode ser imprecisa.`;
+  }
+
+  private async callClaude(prompt: string, maxTokens = 1024): Promise<AiResult> {
     const anthropic = new Anthropic({ apiKey: await this.settings.getAnthropicKey() });
     const response = await anthropic.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -140,12 +208,12 @@ export class AiCoachService {
     };
   }
 
-  private async callGpt4o(prompt: string): Promise<AiResult> {
+  private async callGpt4o(prompt: string, maxTokens = 1024): Promise<AiResult> {
     const openai = new OpenAI({ apiKey: await this.settings.getOpenAiKey() });
     const response = await openai.chat.completions.create({
       model: OPENAI_MODEL,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 1024,
+      max_tokens: maxTokens,
     });
 
     const text = response.choices[0]?.message?.content ?? '';
@@ -158,13 +226,13 @@ export class AiCoachService {
     };
   }
 
-  private async callDeepSeek(prompt: string): Promise<AiResult> {
+  private async callDeepSeek(prompt: string, maxTokens = 1024): Promise<AiResult> {
     // API do DeepSeek é compatível com o formato OpenAI — só troca a baseURL e o modelo.
     const deepseek = new OpenAI({ apiKey: await this.settings.getDeepSeekKey(), baseURL: DEEPSEEK_BASE_URL });
     const response = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 1024,
+      max_tokens: maxTokens,
     });
 
     const text = response.choices[0]?.message?.content ?? '';

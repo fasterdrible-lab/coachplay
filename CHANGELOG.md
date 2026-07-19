@@ -1,5 +1,20 @@
 # Changelog — Coach Play
 
+## [0.34.0] — 2026-07-18
+
+### Added
+- **Fase 2 do módulo de Captura via Remote Play: Game State Detector + Event Detector + feedback quase em tempo real.** Fecha o pipeline que a Fase 1 deixou pendente — até aqui, frames enviados pelo `apps/desktop` ficavam com `analysisStatus: pending` para sempre, sem nenhuma análise. Plano completo em `docs/REMOTE_PLAY_CAPTURE.md`.
+- **`GameStateDetectorService`**: heurística de diferença de pixels (`sharp`) entre o frame atual e o anterior da mesma sessão, sempre com confidence score. Sem reconhecimento de HUD/cores específicas do EA FC (sem capturas reais disponíveis para calibrar) — dos 5 valores de `FrameGameState`, o heurístico MVP só emite `menu` (proxy "estático") e `match_running` (proxy "ativo"); `paused`/`replay`/`post_match` ficam reservados no schema.
+- **`EventDetectorService`**: heurística de pico de movimento após atividade sustentada, com dois limiares de confiança independentes — um para persistir o `GameEvent`, outro mais alto para acionar a IA.
+- **Fila BullMQ `capture-frame-analysis`**: novo worker consome cada `FrameSample` enviado (`CaptureSessionsService.addFrame` enfileira o job), encadeando detecção de estado → detecção de evento → geração de feedback. Sessões sem `matchId` associado classificam o `gameState` mas não geram evento/feedback (best-effort, não falha o job).
+- **`AiCoachService.generateEventFeedback`**: reaproveita a cadeia de fallback Claude → GPT-4o → DeepSeek já usada por `analyzeMatch`, com prompt curto (uma frase) por evento. Limite de dicas por minuto reaproveita `UserPreferences.feedbackLevel` (silencioso/leve/normal/intensivo) — sem migration nova para esse campo.
+- **Prisma**: novo enum `FrameGameState` + campos `gameState`/`motionScore` em `FrameSample`.
+- 21 novos testes (detectores, worker, extensão de `AiCoachService` e `CaptureSessionsService`).
+
+### Notes
+- Os limiares de detecção (`STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`, `SPIKE_THRESHOLD` e os dois de confiança) são placeholders validados só com imagens sintéticas em teste — precisam de calibração com captura real de Remote Play antes de considerar a detecção confiável em produção.
+- Geração automática de `VideoSegment` a partir de eventos detectados (FFmpeg no `apps/desktop`) fica para uma rodada futura — `SegmentReason.event_detected` continua sem uso.
+
 ## [0.33.0] — 2026-07-17
 
 ### Added

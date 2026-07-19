@@ -81,6 +81,17 @@ enum FrameAnalysisStatus {
   failed
 }
 
+// Fase 2 (heurística de motion/frame-diff, sem leitura de HUD específica de jogo):
+// o detector MVP só emite menu (proxy "estático") e match_running (proxy "ativo").
+// paused/replay/post_match ficam reservados para uma heurística futura mais específica.
+enum FrameGameState {
+  menu
+  match_running
+  paused
+  replay
+  post_match
+}
+
 enum SegmentReason {
   event_detected
   manual
@@ -233,6 +244,9 @@ model GameEvent {
   segmentId        String?  @map("segment_id")
   eventType        String   @map("event_type")
   category         String
+  // Unidade de timestampStart/End depende da origem, sem flag por linha:
+  // - captureSessionId != null (Fase 2, capture-frame-analysis.worker.ts) → milissegundos
+  // - captureSessionId == null (upload manual, game-analysis.service.ts) → segundos
   timestampStart   Int      @map("timestamp_start")
   timestampEnd     Int?     @map("timestamp_end")
   description      String?
@@ -413,6 +427,8 @@ model FrameSample {
   width            Int?
   height           Int?
   confidenceScore  Float?               @map("confidence_score")
+  gameState        FrameGameState?      @map("game_state")
+  motionScore      Float?               @map("motion_score")
   analysisStatus   FrameAnalysisStatus  @default(pending) @map("analysis_status")
   createdAt        DateTime             @default(now()) @map("created_at")
 

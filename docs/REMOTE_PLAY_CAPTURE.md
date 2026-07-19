@@ -297,9 +297,42 @@ no futuro. Só aceita conexões de `127.0.0.1`; nunca expõe a rede.
 - Testes automatizados do que roda sem GUI (state machine, rotas do servidor local,
   service do backend).
 
+**Entregue nesta rodada (Fase 2 — Game State Detector + Event Detector + feedback quase em
+tempo real):**
+- `GameStateDetectorService` (`apps/api/src/modules/capture-sessions/game-state-detector.service.ts`):
+  heurística de diferença de pixels (`sharp`) entre o frame atual e o anterior da mesma sessão,
+  sempre com confidence score. **Não há reconhecimento de HUD/cores específicas do EA FC** — sem
+  capturas reais disponíveis para calibrar esse tipo de regra. Dos 5 valores de `FrameGameState`,
+  o heurístico MVP só emite `menu` (proxy "estático") e `match_running` (proxy "ativo");
+  `paused`/`replay`/`post_match` ficam reservados no schema para uma classificação futura mais
+  específica, quando houver imagens reais de referência.
+- `EventDetectorService` (`event-detector.service.ts`): heurística de pico de movimento após um
+  trecho sustentado de atividade — também aproximada e confidence-scored, com dois limiares
+  independentes: um para persistir o `GameEvent` (`EVENT_MIN_CONFIDENCE`), outro mais alto para
+  acionar a IA e gerar feedback (`FEEDBACK_MIN_CONFIDENCE`), já que chamadas de IA custam dinheiro.
+- Fila BullMQ `capture-frame-analysis` (`capture-frame-analysis.worker.ts`): consome cada
+  `FrameSample` recém-enviado (enfileirado a partir de `CaptureSessionsService.addFrame`),
+  encadeia detecção de estado → detecção de evento → geração de feedback num único job.
+  Sessões sem `matchId` associado classificam o `gameState` normalmente, mas não geram
+  `GameEvent`/`CoachFeedback` (esses modelos exigem `matchId`).
+- `AiCoachService.generateEventFeedback` (`apps/api/src/modules/ai-coach/ai-coach.service.ts`):
+  reaproveita a cadeia de fallback Claude → GPT-4o → DeepSeek já usada por `analyzeMatch`, mas
+  com prompt curto (uma frase, ≤20 palavras) por evento em vez do resumo pós-jogo. O limite de
+  dicas por minuto reaproveita `UserPreferences.feedbackLevel` (silencioso=0, leve=1, normal=3,
+  intensivo=6 — sem migration nova para esse campo).
+- Os limiares (`STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`, `SPIKE_THRESHOLD` e os dois de confiança)
+  são placeholders validados só com imagens sintéticas em teste — precisam de calibração com
+  captura real de Remote Play antes de considerar a detecção confiável em produção.
+- Nenhuma rota HTTP nova: tudo roda internamente (consumidor de fila + chamadas serviço a
+  serviço), lido pelas rotas de leitura já existentes (`GET /matches/:id/events` e `/feedbacks`).
+- `SegmentReason.event_detected` continua sem uso — geração automática de clipe (FFmpeg
+  concatenando o `FrameBuffer` do desktop ao redor de um evento) fica para uma rodada futura.
+
 **Próximos passos (não implementados agora, ficam no roadmap):**
-- Fase 2: Game State Detector + Event Detector (heurísticas) + feedback textual quase
-  em tempo real.
+- Geração automática de `VideoSegment` a partir de eventos detectados (FFmpeg no `apps/desktop`
+  concatenando frames do `FrameBuffer`, `BackendClient.uploadSegment`).
+- Calibração dos limiares de detecção com captura real de Remote Play (EA FC), e/ou heurísticas
+  específicas de HUD para distinguir `paused`/`replay`/`post_match`.
 - Fase 3: voz, tracking visual, comparação entre partidas.
 - Fase 4: modelo próprio (YOLO) treinado com dataset anotado sob consentimento.
 
