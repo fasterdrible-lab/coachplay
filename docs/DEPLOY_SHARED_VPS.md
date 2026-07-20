@@ -87,6 +87,29 @@ de DNS com API (ex.: `certbot-dns-cloudflare` se o DNS migrar pra lá).
    interrupção perceptível.
 7. Acesse `https://coachplayals.com.br`.
 
+## Importante: recriar `coachplay-api`/`coachplay-web` sempre exige reload do nginx
+
+Toda vez que um desses containers é recriado (`up -d web`, `up -d api`, deploy de nova versão),
+o IP dele na rede `easysub_easysub` muda. O `easysub-nginx-1` resolve o hostname (`coachplay-api`/
+`coachplay-web`) uma vez e cacheia o IP resolvido — sem um reload, ele continua tentando o IP
+antigo e todo request retorna 502 (`connect() failed (111: Connection refused)`), mesmo com o
+container novo saudável. Sempre rodar depois de qualquer recreate:
+
+```bash
+docker exec easysub-nginx-1 nginx -s reload
+```
+
+## `web` precisa de `HOSTNAME: 0.0.0.0` explícito
+
+O Next.js standalone usa a env var `HOSTNAME` como endereço de bind do servidor. O Docker define
+`HOSTNAME` automaticamente como o ID do container — como `coachplay-web` está em duas redes
+(`internal` + `easysub_easysub`), esse ID resolve para **dois** IPs diferentes em `/etc/hosts`
+dentro do container, e o servidor só faz bind no primeiro deles. Se esse primeiro IP for o da
+rede `internal`, o nginx compartilhado (que está na rede `easysub_easysub`) nunca consegue
+alcançá-lo, mesmo com o container saudável e o IP/DNS corretos (connection refused). Por isso
+`docker-compose.vps.yml` já define `HOSTNAME: 0.0.0.0` no serviço `web`, forçando bind em todas
+as interfaces — não remover essa variável.
+
 ## Deploy de uma nova versão
 
 ```bash

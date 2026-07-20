@@ -1,5 +1,22 @@
 # Changelog — Coach Play
 
+## [0.36.1] — 2026-07-20
+
+### Fixed
+- **`coachplay-web` inacessível pelo nginx compartilhado mesmo com o container saudável**:
+  o Next.js standalone usa a env var `HOSTNAME` como endereço de bind, e o Docker define
+  `HOSTNAME` automaticamente como o ID do container. Como `coachplay-web` está em duas redes
+  (`internal` + a rede do nginx compartilhado, `easysub_easysub`), esse ID resolve para **dois**
+  IPs em `/etc/hosts` — o servidor só faz bind no primeiro (`172.22.0.5`, a rede interna),
+  ficando inacessível pela rede do nginx (`172.20.0.9`, connection refused mesmo com IP e DNS
+  corretos). Corrigido com `HOSTNAME: 0.0.0.0` explícito no serviço `web`, forçando bind em
+  todas as interfaces — aplicado em `docker-compose.vps.yml` e, por robustez, também em
+  `docker-compose.prod.yml`.
+- Nota operacional: toda vez que `coachplay-web`/`coachplay-api` é recriado, o IP na rede
+  compartilhada muda — o `easysub-nginx-1` resolve o hostname uma vez e cacheia, então precisa
+  de `docker exec easysub-nginx-1 nginx -s reload` depois de qualquer recreate desses containers
+  (documentado em `docs/DEPLOY_SHARED_VPS.md`).
+
 ## [0.36.0] — 2026-07-20
 
 ### Added

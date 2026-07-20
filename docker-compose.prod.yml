@@ -83,6 +83,12 @@ services:
       # override, o Next.js standalone herda esse valor e passa a escutar em 3001 em
       # vez de 3000, quebrando o proxy_pass do nginx (achado numa validação real de deploy)
       PORT: 3000
+      # O Next.js standalone usa a env var HOSTNAME como endereço de bind, e o Docker
+      # define HOSTNAME automaticamente como o ID do container — se o container estiver
+      # em mais de uma rede, isso pode fazer o servidor ficar acessível só por uma delas.
+      # Forçar 0.0.0.0 garante bind em todas as interfaces (achado na variante
+      # docker-compose.vps.yml, aplicado aqui também por robustez).
+      HOSTNAME: 0.0.0.0
     depends_on:
       - api
     networks: [internal]
