@@ -24,5 +24,9 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  // Além de api/_next/*, exclui qualquer arquivo estático da pasta public/ (extensão
+  // com ponto) — sem isso, pedidos como /logo-mark.png caem no matcher, o middleware
+  // redireciona pra /login sem sessão, e o otimizador de imagem do Next.js recebe HTML
+  // no lugar do PNG (achado ao trocar a logo: badge aparecia corrompido/em branco).
+  matcher: ['/((?!api|_next/static|_next/image|.*\\.[^/]+$).*)'],
 };
