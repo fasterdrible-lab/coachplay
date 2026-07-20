@@ -1,5 +1,31 @@
 # Changelog — Coach Play
 
+## [0.36.2] — 2026-07-20
+
+### Added
+- **Logo de verdade em uso pela primeira vez.** A partir de `Logo coach play.png` (já existente
+  na raiz do repo, nunca usada em nenhuma tela), gerados via crop (só o emblema, sem a palavra
+  "COACH PLAY", que não caberia legível num badge pequeno):
+  - `apps/web/public/logo-mark.png` — emblema quadrado, usado nos badges de
+    login/register/reset-password/forgot-password e na sidebar (antes eram só um `<span>C</span>`
+    num quadrado com gradiente CSS)
+  - `apps/web/public/logo-full.png` — logo completa (emblema + wordmark), para usos futuros
+  - `favicon.ico` + `apple-touch-icon.png` + `icon-192/512.png` — gerados do mesmo emblema,
+    configurados via `metadata.icons` em `app/layout.tsx`
+
+### Fixed
+- **Badge da logo aparecia corrompido/em branco no navegador** (achado ao validar a troca acima):
+  `middleware.ts` só excluía `api`, `_next/static`, `_next/image` e `favicon.ico` do seu matcher
+  — qualquer outro arquivo estático de `public/` (como o novo `logo-mark.png`) caía no middleware
+  normal e, sem sessão ativa, era redirecionado pra `/login`. O otimizador de imagem do Next.js
+  então recebia HTML no lugar do PNG ao processar o `<Image>`, resultando num badge corrompido.
+  Corrigido excluindo qualquer caminho com extensão de arquivo do matcher (não mais uma lista
+  fixa de 4 exceções) — protege contra o mesmo problema pra qualquer asset futuro em `public/`.
+- **Conta de admin criada em produção**: `fasterdrible@gmail.com` cadastrada via `/register` no
+  ambiente real e promovida a `role = 'admin'` diretamente no banco (mesmo procedimento usado no
+  ambiente local) — banco de produção era zerado (só os planos do seed), nenhuma conta migrada
+  do ambiente de desenvolvimento.
+
 ## [0.36.1] — 2026-07-20
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.36.0
+**Versão:** V.0.36.2
 **Data:** 2026-07-20
 **Fase:** Fase 7 — Produção (concluída, **em produção real em https://coachplayals.com.br**) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fases 1 e 2, validadas manualmente)
 
@@ -347,6 +347,9 @@ certificado via desafio DNS-01 (Cloudflare API token) em vez de webroot.
   - `docker-compose.prod.yml` (e a nova variante `docker-compose.vps.yml`): o serviço `web` também lê o `.env` compartilhado com a API (`PORT=3001`), então o Next.js standalone herdava essa porta em vez de 3000, quebrando o `proxy_pass` do nginx (502). Corrigido com `environment: PORT: 3000` explícito no serviço `web` — afeta qualquer deploy de VPS dedicado feito antes desta correção
 - [x] Certificado TLS real emitido via Let's Encrypt + Cloudflare DNS-01 (`certbot-dns-cloudflare`, token restrito à zona), renovação automática configurada
 - [x] Testado de ponta a ponta contra o domínio real: `/login` (200), `/api/v1/plans` (401, rota protegida respondendo), redirect de `/` sem sessão — certificado válido até 2026-10-18
+- [x] **3º bug de produção encontrado ao trocar a logo**: `middleware.ts` só excluía 4 caminhos fixos (`api`, `_next/static`, `_next/image`, `favicon.ico`) do matcher — qualquer outro arquivo estático de `public/` (ex.: `logo-mark.png`) era tratado como rota protegida e redirecionado pra `/login` sem sessão, corrompendo o `<Image>` do Next.js (recebia HTML no lugar do PNG). Corrigido excluindo qualquer caminho com extensão de arquivo, não mais uma lista fixa
+- [x] Logo de verdade em uso (`Logo coach play.png` → `logo-mark.png`/`logo-full.png`/favicon), substituindo o badge de texto CSS em login/register/reset-password/forgot-password/sidebar
+- [x] Conta de admin criada em produção: `fasterdrible@gmail.com` cadastrada via `/register` e promovida a `admin` direto no banco (banco de produção é zerado, nenhuma conta migrada do ambiente local)
 - [ ] Chaves de IA (Anthropic/OpenAI) ainda não configuradas em produção — a decisão foi configurar depois pelo painel admin (`/admin/usage`) em vez de variável de ambiente
 - [ ] Senha root do VPS foi compartilhada em texto durante a sessão (só pra autorizar a chave SSH usada no deploy) — recomendado trocá-la (`passwd`) por precaução
 
