@@ -3,6 +3,7 @@
  * Mantido em um único lugar para o preload e os handlers nunca divergirem.
  */
 export const IPC_CHANNELS = {
+  AUTH_LOGIN: 'auth:login',
   LIST_SOURCES: 'capture:list-sources',
   START: 'capture:start',
   PAUSE: 'capture:pause',

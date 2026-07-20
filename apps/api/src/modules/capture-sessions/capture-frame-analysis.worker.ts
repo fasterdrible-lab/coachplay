@@ -38,12 +38,15 @@ export class CaptureFrameAnalysisWorker extends WorkerHost {
       return;
     }
 
-    // Frame anterior = último já *analisado* da sessão, não literalmente o anterior por
-    // timestamp — sob concorrência (múltiplos jobs em paralelo), na pior hipótese compara com um
-    // frame um pouco mais antigo que o ideal (leve atraso na detecção), nunca uma leitura
-    // inconsistente, já que o update do Prisma é atômico.
+    // Frame anterior = literalmente o anterior por timestamp, independente do analysisStatus
+    // dele. Filtrar por analysisStatus: 'analyzed' aqui parece mais "correto" à primeira vista,
+    // mas cria uma trava em cascata: o primeiro frame de qualquer sessão nunca tem anterior,
+    // então fica 'skipped' — e como nenhum frame seguinte encontra um anterior "analyzed",
+    // TODA a sessão fica 'skipped' para sempre (achado validando com captura real; os testes
+    // deste worker mockam o retorno de findFirst, então nunca exercitam essa cadeia). Só
+    // precisamos do arquivo de imagem do anterior para o diff, não do resultado da análise dele.
     const previous = await this.prisma.frameSample.findFirst({
-      where: { captureSessionId, analysisStatus: 'analyzed', timestampMs: { lt: timestampMs } },
+      where: { captureSessionId, timestampMs: { lt: timestampMs } },
       orderBy: { timestampMs: 'desc' },
       select: { framePath: true },
     });

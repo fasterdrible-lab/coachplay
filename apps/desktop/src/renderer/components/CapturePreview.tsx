@@ -5,13 +5,20 @@ interface CapturePreviewProps {
   source: CaptureSourceInfo;
   analysisFps: number;
   isPaused: boolean;
+  sessionStartedAt: number;
   onSourceEnded: () => void;
 }
 
 const ANALYSIS_MAX_WIDTH = 1280;
 const ANALYSIS_MAX_HEIGHT = 720;
 
-export function CapturePreview({ source, analysisFps, isPaused, onSourceEnded }: CapturePreviewProps) {
+export function CapturePreview({
+  source,
+  analysisFps,
+  isPaused,
+  sessionStartedAt,
+  onSourceEnded,
+}: CapturePreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -77,12 +84,15 @@ export function CapturePreview({ source, analysisFps, isPaused, onSourceEnded }:
       canvas.toBlob(async (blob) => {
         if (!blob) return;
         const buffer = await blob.arrayBuffer();
-        await window.coachPlay.capture.submitFrame(buffer, Date.now());
+        // Elapsed desde o início da sessão, não Date.now(): o backend guarda esse valor em
+        // uma coluna Int (ver schema.prisma, FrameSample.timestampMs) — um epoch absoluto
+        // (~13 dígitos) estoura um INT4 do Postgres; decorrido desde o start nunca chega perto.
+        await window.coachPlay.capture.submitFrame(buffer, Date.now() - sessionStartedAt);
       }, 'image/png');
     }, intervalMs);
 
     return () => clearInterval(timer);
-  }, [analysisFps, isPaused]);
+  }, [analysisFps, isPaused, sessionStartedAt]);
 
   return (
     <div className="card">

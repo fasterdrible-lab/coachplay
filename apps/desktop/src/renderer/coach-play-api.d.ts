@@ -1,5 +1,10 @@
 import type { CaptureSourceInfo, StartCaptureParams } from '../main/local-capture-controller';
 import type { CaptureSessionSnapshot } from '../main/capture-session-state';
+import type { AuthenticatedUser } from '../main/backend-client';
+
+export interface CoachPlayAuthApi {
+  login(email: string, password: string): Promise<AuthenticatedUser>;
+}
 
 export interface CoachPlayCaptureApi {
   listSources(): Promise<CaptureSourceInfo[]>;
@@ -15,6 +20,7 @@ export interface CoachPlayCaptureApi {
 declare global {
   interface Window {
     coachPlay: {
+      auth: CoachPlayAuthApi;
       capture: CoachPlayCaptureApi;
     };
   }

@@ -29,7 +29,7 @@ app.whenReady().then(() => {
   const manager = new CaptureSessionManager(backendClient);
   const window = createWindow();
 
-  registerIpcHandlers(manager, window);
+  registerIpcHandlers(manager, backendClient, window);
 
   const localServer = createLocalCaptureServer(manager);
   localServer.listen(LOCAL_SERVER_PORT, '127.0.0.1');

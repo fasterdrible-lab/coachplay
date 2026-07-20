@@ -42,6 +42,24 @@ body {
 
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+input[type="email"],
+input[type="password"],
+input[type="text"] {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #f8f8fc;
+  font-size: 14px;
+}
+
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="text"]:focus {
+  outline: none;
+  border-color: #d9a441;
+}
+
 .source-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

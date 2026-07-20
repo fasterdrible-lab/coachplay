@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { LoginScreen } from './components/LoginScreen';
 import { ConsentScreen } from './components/ConsentScreen';
 import { SourceSelector } from './components/SourceSelector';
 import { CapturePreview } from './components/CapturePreview';
 import { SessionControls } from './components/SessionControls';
 import type { CaptureSourceInfo } from '../main/local-capture-controller';
 import type { CaptureSessionSnapshot } from '../main/capture-session-state';
+import type { AuthenticatedUser } from '../main/backend-client';
 
-type Step = 'consent' | 'select-source' | 'capturing';
+type Step = 'login' | 'consent' | 'select-source' | 'capturing';
 
 export function App() {
-  const [step, setStep] = useState<Step>('consent');
+  const [step, setStep] = useState<Step>('login');
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [selectedSource, setSelectedSource] = useState<CaptureSourceInfo | null>(null);
   const [snapshot, setSnapshot] = useState<CaptureSessionSnapshot | null>(null);
   const [error, setError] = useState('');
@@ -35,8 +38,12 @@ export function App() {
       setSelectedSource(source);
       setSnapshot(result);
       setStep('capturing');
-    } catch {
-      setError('Não foi possível iniciar a captura. Verifique sua conexão e tente novamente.');
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível iniciar a captura. Verifique sua conexão e tente novamente.',
+      );
     }
   }
 
@@ -56,12 +63,28 @@ export function App() {
 
   return (
     <div className="app">
-      <h1 style={{ margin: 0 }}>Coach Play — Captura via Remote Play</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <h1 style={{ margin: 0 }}>Coach Play — Captura via Remote Play</h1>
+        {user && (
+          <span style={{ color: 'rgba(248,248,252,0.55)', fontSize: 13 }}>
+            {user.name} ({user.email})
+          </span>
+        )}
+      </div>
 
       {error && (
         <div className="card" style={{ borderColor: '#e2718a' }}>
           <p style={{ color: '#e2718a', margin: 0 }}>{error}</p>
         </div>
+      )}
+
+      {step === 'login' && (
+        <LoginScreen
+          onSuccess={(loggedUser) => {
+            setUser(loggedUser);
+            setStep('consent');
+          }}
+        />
       )}
 
       {step === 'consent' && <ConsentScreen onAccept={() => setStep('select-source')} />}
@@ -80,6 +103,7 @@ export function App() {
             source={selectedSource}
             analysisFps={snapshot.analysisFps}
             isPaused={snapshot.status === 'paused'}
+            sessionStartedAt={snapshot.startedAt ?? Date.now()}
             onSourceEnded={() => {
               setError('O sinal da fonte selecionada foi perdido.');
               handleStop();

@@ -1,8 +1,8 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.33.0
-**Data:** 2026-07-17
-**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fase 1)
+**Versão:** V.0.35.0
+**Data:** 2026-07-20
+**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fases 1 e 2, validadas manualmente)
 
 ---
 
@@ -380,7 +380,7 @@
 
 ---
 
-### Captura via Remote Play — Fase 1 (pós Fase 7)
+### Captura via Remote Play — Fases 1 e 2 (pós Fase 7)
 
 Base do novo módulo que permite analisar partidas do Xbox capturando a tela do PC via Xbox
 Remote Play oficial (sem engenharia reversa, sem acesso a memória/API privada, sem automação de
@@ -389,15 +389,25 @@ jogo). Plano completo, riscos e próximas fases em [`docs/REMOTE_PLAY_CAPTURE.md
 - [x] Prisma: `CaptureSession`, `FrameSample`, `VideoSegment`, `CoachFeedback` + `GameEvent` linkado ao novo pipeline
 - [x] `CaptureSessionsModule` (backend): lifecycle da sessão, ingestão de frames/segmentos, leitura de eventos/feedbacks — 12 testes
 - [x] `apps/desktop` (novo workspace Electron + TypeScript): state machine de sessão, servidor HTTP local (`127.0.0.1`), seleção de fonte via `desktopCapturer`, preview ao vivo via `getUserMedia`, tela de consentimento, controles start/pause/stop — 15 testes, build (`tsc` + `esbuild`) validado
-- [ ] Fase 2+ (Game State Detector, Event Detector, feedback textual/voz, modelo próprio) — documentado no plano, não implementado
-- [ ] Validação manual em Windows real com Xbox Remote Play — não foi possível testar neste ambiente de desenvolvimento (sem GUI/console)
+- [x] **Fase 2** — `GameStateDetectorService` (heurística de diff de pixels via `sharp`, emite `menu`/`match_running`), `EventDetectorService` (pico de movimento com dois limiares de confiança), fila BullMQ `capture-frame-analysis` encadeando estado → evento → feedback, `AiCoachService.generateEventFeedback` (Claude → GPT-4o → DeepSeek, respeitando `UserPreferences.feedbackLevel`) — 21 novos testes (ver CHANGELOG 0.34.0)
+- [x] **Validação manual em Windows real, feita nesta rodada** — primeira vez que o módulo rodou de verdade (login, consentimento, seleção de fonte, captura ao vivo contra uma sessão real de Xbox Remote Play via navegador). Encontrados e corrigidos 3 bugs que nenhum teste automatizado cobria (ver CHANGELOG 0.35.0):
+  - `apps/desktop` não tinha nenhuma tela de login — `LoginScreen` nova, autentica via `POST /auth/login` reaproveitado, token guardado só em memória do processo main
+  - Sessão de captura ficava travada em `stopped`/`failed` para sempre após o primeiro encerramento (`CaptureSessionState` é de uso único) — `CaptureSessionManager` agora recria a state machine ao iniciar uma nova captura
+  - Frames nunca eram persistidos: o app mandava `Date.now()` (epoch absoluto) como `timestampMs`, estourando a coluna `INT4` do Postgres — corrigido para mandar o tempo decorrido desde o início da sessão
+  - Trava em cascata no `CaptureFrameAnalysisWorker`: a busca do "frame anterior" exigia `analysisStatus: 'analyzed'`, mas o primeiro frame de qualquer sessão nunca tem anterior (fica `skipped`) — nenhum frame seguinte nunca achava um anterior válido, e a sessão inteira ficava `skipped` para sempre. Corrigido para buscar só por timestamp, sem exigir status
+- [x] **Limitação real descoberta (não é bug do Coach Play)**: o Xbox Remote Play/Cloud Gaming pausa o stream sozinho quando a aba/janela perde foco ou visibilidade (comportamento do próprio produto Microsoft, pra economizar banda e evitar input acidental) — então focar a janela do `apps/desktop` durante a partida (ex.: pra pausar/encerrar a captura) pausa o jogo junto. Não há como evitar isso a partir do nosso app enquanto ele for uma janela separada — ver `docs/REMOTE_PLAY_CAPTURE.md`, seção de riscos
+- [ ] Calibração dos limiares de detecção (`STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`, `SPIKE_THRESHOLD` e os 2 de confiança) com captura real — a validação confirmou que a classificação `menu`/`match_running` roda nos frames reais, mas os limiares em si (ajuste fino) ainda não foram calibrados com dados reais o suficiente
+- [ ] Geração automática de `VideoSegment` a partir de eventos detectados (FFmpeg no `apps/desktop`) — `SegmentReason.event_detected` ainda sem uso
+- [ ] Vínculo da sessão de captura com uma `Match` (`matchId`) — sem isso, `GameEvent`/`CoachFeedback` nunca são persistidos mesmo com a classificação funcionando; não existe tela no app desktop pra criar/escolher uma partida ainda
 
 ## Próxima tarefa
 
-Validar manualmente o módulo de Captura via Remote Play em um PC Windows com o Xbox Remote Play
-aberto (seleção de janela, preview, start/pause/stop) — é o único pedaço que não pôde ser testado
-neste ambiente. Depois disso, próximo passo natural é a Fase 2 do plano (Game State Detector +
-Event Detector com heurísticas simples).
+Construir uma **extensão de navegador** como caminho alternativo (e provavelmente definitivo) ao
+`apps/desktop` para o fluxo de Remote Play via browser. Motivação, além de eficiência: a limitação
+de foco descoberta na validação manual (Remote Play pausa quando a janela do Electron ganha foco)
+não existe numa extensão, porque ela roda dentro da própria aba — nunca precisa roubar o foco da
+página do Remote Play. Trade-off já discutido: a extensão cobriria só o fluxo via navegador
+(`xbox.com/play`), não o app nativo Xbox no Windows, que o `apps/desktop` também suporta.
 
 ---
 

@@ -2,8 +2,18 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from './ipc-channels';
 import { CaptureSessionManager } from './capture-session-manager';
 import { StartCaptureParams } from './local-capture-controller';
+import { BackendClient } from './backend-client';
 
-export function registerIpcHandlers(manager: CaptureSessionManager, window: BrowserWindow): void {
+export function registerIpcHandlers(
+  manager: CaptureSessionManager,
+  backendClient: BackendClient,
+  window: BrowserWindow,
+): void {
+  ipcMain.handle(IPC_CHANNELS.AUTH_LOGIN, async (_event, credentials: { email: string; password: string }) => {
+    const { user } = await backendClient.login(credentials.email, credentials.password);
+    return user;
+  });
+
   ipcMain.handle(IPC_CHANNELS.LIST_SOURCES, () => manager.listSources());
 
   ipcMain.handle(IPC_CHANNELS.START, (_event, params: StartCaptureParams) => manager.start(params));

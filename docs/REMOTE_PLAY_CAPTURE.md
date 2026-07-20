@@ -328,7 +328,23 @@ tempo real):**
 - `SegmentReason.event_detected` continua sem uso — geração automática de clipe (FFmpeg
   concatenando o `FrameBuffer` do desktop ao redor de um evento) fica para uma rodada futura.
 
+**Validação manual em Windows real (2026-07-20):** primeira vez que o módulo rodou de fato, contra uma
+sessão real de Xbox Remote Play via navegador. Encontrados e corrigidos 4 bugs que nenhum teste
+automatizado cobria (login ausente no `apps/desktop`, sessão travando em `stopped`/`failed` para sempre,
+overflow de `INT4` no timestamp dos frames, trava em cascata no `CaptureFrameAnalysisWorker` que mantinha
+todo frame em `skipped`) — detalhes em `CHANGELOG.md` 0.35.0. Também revelou a limitação de foco descrita
+na tabela de riscos abaixo, que motivou priorizar a extensão de navegador no roadmap.
+
 **Próximos passos (não implementados agora, ficam no roadmap):**
+- **Extensão de navegador** (prioridade atual): caminho alternativo ao `apps/desktop` para o fluxo via
+  browser (`xbox.com/play`). Motivação além de eficiência (captura direta do `<video>`/`<canvas>` do
+  player em vez de re-fotografar a janela do sistema): resolve estruturalmente a limitação de foco
+  descrita abaixo, já que uma extensão roda dentro da própria aba e nunca precisa roubar o foco da
+  página do Remote Play para pausar/encerrar a captura. Trade-off: cobriria só o fluxo via navegador,
+  não o app nativo Xbox no Windows, que o `apps/desktop` também suporta.
+- Vínculo da sessão de captura com uma `Match` (`matchId`) — sem ele, `GameEvent`/`CoachFeedback` nunca
+  são persistidos mesmo com a classificação de estado funcionando; nem `apps/desktop` nem a futura
+  extensão têm hoje uma forma de criar/escolher uma partida antes de iniciar a captura.
 - Geração automática de `VideoSegment` a partir de eventos detectados (FFmpeg no `apps/desktop`
   concatenando frames do `FrameBuffer`, `BackendClient.uploadSegment`).
 - Calibração dos limiares de detecção com captura real de Remote Play (EA FC), e/ou heurísticas
@@ -347,4 +363,5 @@ tempo real):**
 | Electron consome mais CPU/RAM que um app nativo | Pode competir por recursos com o jogo/Remote Play rodando no mesmo PC | FPS de captura baixo por padrão (1–5), resolução reduzida antes de qualquer processamento; monitorar em beta real antes de aumentar frequência |
 | `desktopCapturer`/`getUserMedia` não garantem 100% de compatibilidade com todo driver de vídeo | Em alguns PCs a captura de uma janela específica pode falhar e só o monitor inteiro funcionar | UI expõe monitor inteiro como alternativa sempre disponível; detecção de falha avisa o usuário em vez de travar silenciosamente |
 | Nenhum dataset anotado existe ainda | YOLO/tracking visual (Fase 4) não têm previsão real sem coleta de dados | Fases 1–3 usam heurísticas + IA multimodal em texto/imagem estática, não modelo customizado |
-| Este documento e o código descrevem a lógica de captura e pipeline — a captura real de uma janela de Remote Play não foi (e não pôde ser) testada neste ambiente de desenvolvimento, que não tem GUI do Windows nem o Xbox Remote Play instalado | Bugs específicos de ambiente Windows real só aparecem em teste manual do usuário | Testes automatizados cobrem tudo que não depende de GUI (state machine, rotas HTTP, service do backend); captura de tela real precisa ser validada manualmente no PC do usuário antes de considerar o MVP "pronto" |
+| Este documento e o código descrevem a lógica de captura e pipeline — a captura real de uma janela de Remote Play não foi (e não pôde ser) testada neste ambiente de desenvolvimento, que não tem GUI do Windows nem o Xbox Remote Play instalado | Bugs específicos de ambiente Windows real só aparecem em teste manual do usuário | Testes automatizados cobrem tudo que não depende de GUI (state machine, rotas HTTP, service do backend); captura de tela real precisa ser validada manualmente no PC do usuário antes de considerar o MVP "pronto" — **feito em 2026-07-20**, ver `CHANGELOG.md` 0.35.0 |
+| Xbox Remote Play/Cloud Gaming pausa o stream sozinho quando a aba/janela perde foco ou visibilidade (comportamento do próprio produto Microsoft, não algo que o Coach Play controla) | Focar a janela do `apps/desktop` durante a partida (ex.: para pausar/encerrar a captura) pausa o jogo junto — atrito real de UX descoberto na validação manual | Não há mitigação possível enquanto a captura for uma janela separada; motivou priorizar a extensão de navegador (roda dentro da própria aba, nunca precisa de foco) como próximo passo do roadmap |

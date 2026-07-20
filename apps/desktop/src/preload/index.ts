@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../main/ipc-channels';
 import { CaptureSourceInfo, StartCaptureParams } from '../main/local-capture-controller';
 import { CaptureSessionSnapshot } from '../main/capture-session-state';
+import { AuthenticatedUser } from '../main/backend-client';
 
 /**
  * Única porta entre o processo main (Node, acesso a arquivos/rede) e o
@@ -9,6 +10,11 @@ import { CaptureSessionSnapshot } from '../main/capture-session-state';
  * cru, para que o renderer não possa invocar canais arbitrários.
  */
 contextBridge.exposeInMainWorld('coachPlay', {
+  auth: {
+    login: (email: string, password: string): Promise<AuthenticatedUser> =>
+      ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGIN, { email, password }),
+  },
+
   capture: {
     listSources: (): Promise<CaptureSourceInfo[]> => ipcRenderer.invoke(IPC_CHANNELS.LIST_SOURCES),
 

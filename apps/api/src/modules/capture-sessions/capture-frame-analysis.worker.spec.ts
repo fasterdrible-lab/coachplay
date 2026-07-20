@@ -66,6 +66,19 @@ describe('CaptureFrameAnalysisWorker', () => {
     expect(eventDetector.detectCandidate).not.toHaveBeenCalled();
   });
 
+  it('busca o frame anterior por timestamp sem exigir analysisStatus "analyzed" (regressão: trava em cascata)', async () => {
+    // O primeiro frame de qualquer sessão sempre fica "skipped" (nenhum anterior pra diff).
+    // Se a busca do "anterior" exigisse analysisStatus: 'analyzed', nenhum frame seguinte
+    // encontraria esse primeiro frame como referência, e a sessão inteira travaria em
+    // "skipped" para sempre — bug real encontrado validando com captura ao vivo.
+    prisma.captureSession.findUnique.mockResolvedValue(sessionWithMatch);
+
+    await worker.process(buildJob());
+
+    const where = prisma.frameSample.findFirst.mock.calls[0][0].where;
+    expect(where).not.toHaveProperty('analysisStatus');
+  });
+
   it('caminho feliz: classifica o frame, cria GameEvent e gera feedback quando a confiança é alta', async () => {
     prisma.captureSession.findUnique.mockResolvedValue(sessionWithMatch);
     (eventDetector.detectCandidate as jest.Mock).mockResolvedValue({

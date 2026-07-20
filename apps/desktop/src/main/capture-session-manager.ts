@@ -22,7 +22,7 @@ import {
  * gravar em disco temporário e enviar ao backend por amostragem.
  */
 export class CaptureSessionManager implements LocalCaptureController {
-  private readonly state = new CaptureSessionState();
+  private state = new CaptureSessionState();
   private readonly frameBuffer = new FrameBuffer(30_000);
   private backendSessionId: string | null = null;
   private tempDir: string | null = null;
@@ -48,6 +48,18 @@ export class CaptureSessionManager implements LocalCaptureController {
     // Confirma consentimento implícito: a UI só chama start() depois da tela
     // de consentimento ser aceita (ver ConsentScreen.tsx) — a garantia técnica
     // aqui é que nenhuma captura de pixels começa antes deste método rodar.
+    //
+    // CaptureSessionState é de uso único (stopped/failed são terminais) — uma
+    // nova captura após o fim da anterior precisa de uma instância nova, senão
+    // start() nunca mais sai de "starting" -> "running" (ver validação manual
+    // que encontrou esse bug: encerrar uma sessão travava qualquer captura
+    // seguinte até reiniciar o app inteiro).
+    const previousStatus = this.state.getSnapshot().status;
+    if (previousStatus === 'stopped' || previousStatus === 'failed') {
+      this.state = new CaptureSessionState();
+      this.lastFrame = null;
+    }
+
     const session = await this.backendClient.createCaptureSession({
       sourceType: params.sourceType,
       sourceName: params.sourceName,

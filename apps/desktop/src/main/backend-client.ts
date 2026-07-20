@@ -5,6 +5,13 @@ import { readFile } from 'fs/promises';
  * do processo main (nunca gravado em disco em texto plano) — ver
  * docs/REMOTE_PLAY_CAPTURE.md, Plano de privacidade.
  */
+export interface AuthenticatedUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
 export class BackendClient {
   private accessToken: string | null = null;
 
@@ -23,14 +30,18 @@ export class BackendClient {
     return { Authorization: `Bearer ${this.accessToken}` };
   }
 
-  async login(email: string, password: string): Promise<{ accessToken: string; user: unknown }> {
+  async login(email: string, password: string): Promise<{ accessToken: string; user: AuthenticatedUser }> {
     const res = await fetch(`${this.baseUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    if (!res.ok) throw new Error(`Falha no login (HTTP ${res.status})`);
-    const body = (await res.json()) as { accessToken: string; user: unknown };
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('E-mail ou senha inválidos.');
+      if (res.status === 429) throw new Error('Muitas tentativas — aguarde um minuto e tente novamente.');
+      throw new Error(`Falha no login (HTTP ${res.status})`);
+    }
+    const body = (await res.json()) as { accessToken: string; user: AuthenticatedUser };
     this.accessToken = body.accessToken;
     return body;
   }

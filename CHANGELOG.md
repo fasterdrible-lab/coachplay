@@ -1,5 +1,54 @@
 # Changelog — Coach Play
 
+## [0.35.0] — 2026-07-20
+
+### Fixed
+Primeira validação manual do módulo de Captura via Remote Play num Windows real (login, consentimento,
+seleção de janela, captura ao vivo contra uma sessão real de Xbox Remote Play via navegador). Achados —
+nenhum coberto pela suíte automatizada, que só exercita cada peça isoladamente com dados mockados:
+
+- **`apps/desktop` não tinha tela de login**: o fluxo ia direto de consentimento pra seleção de fonte,
+  então toda tentativa de iniciar captura falhava com "Não autenticado" (erro só visível no log do
+  processo main, a UI mostrava uma mensagem genérica de conexão). Nova `LoginScreen.tsx` como primeiro
+  passo do app, autenticando via `POST /auth/login` já existente; token de acesso guardado só em memória
+  do processo main (`BackendClient`), nunca em disco — mesmo princípio de privacidade já documentado em
+  `docs/REMOTE_PLAY_CAPTURE.md`. Novo canal IPC `auth:login` (`ipc-channels.ts`/`ipc-handlers.ts`/`preload`).
+- **Sessão travava para sempre depois do primeiro "Encerrar"**: `CaptureSessionState` é uma state machine
+  de uso único (`stopped`/`failed` são terminais), mas `CaptureSessionManager` reaproveitava a mesma
+  instância durante toda a vida do processo — qualquer tentativa de iniciar uma nova captura após encerrar
+  a anterior lançava `InvalidTransitionError: não é possível ir de "stopped" para "running"`, exigindo
+  reiniciar o app inteiro. Corrigido: `start()` cria uma `CaptureSessionState` nova quando o estado atual
+  é terminal.
+- **100% dos frames falhavam ao salvar**: o app mandava `Date.now()` (epoch absoluto, ~13 dígitos) como
+  `timestampMs` de cada frame; a coluna é um `INT4` do Postgres (máx. ~2,1 bilhões) e todo upload
+  estourava esse limite (`PrismaClientUnknownRequestError: Unable to fit integer value... into an INT4`),
+  falha só visível no log da API, nunca na tela do app. Corrigido na origem: `CapturePreview.tsx` agora
+  manda o tempo decorrido desde `snapshot.startedAt` (sempre pequeno, nunca estoura o `INT4`) em vez do
+  epoch absoluto — sem migration, sem mudar o schema.
+- **Trava em cascata no `CaptureFrameAnalysisWorker`**: mesmo com os dois bugs acima corrigidos, todo
+  frame ficava com `analysisStatus: 'skipped'` para sempre, nunca `analyzed`. Causa: a busca do "frame
+  anterior" pra calcular o diff de pixels exigia `analysisStatus: 'analyzed'` — mas o primeiro frame de
+  qualquer sessão nunca tem um anterior (fica `skipped` por definição), e como esse filtro exige status
+  `analyzed`, nenhum frame seguinte nunca encontra um anterior válido; a sessão inteira ficava presa em
+  `skipped` de forma permanente. Corrigido: a busca do anterior agora é só por timestamp, sem exigir
+  status (só precisamos do arquivo de imagem dele, não do resultado da análise). Novo teste de regressão
+  em `capture-frame-analysis.worker.spec.ts`.
+
+### Notes
+- **Limitação real descoberta, não é bug nosso**: o Xbox Remote Play/Cloud Gaming pausa o stream
+  sozinho quando a aba/janela perde foco ou visibilidade — comportamento do próprio produto (Microsoft),
+  pra economizar banda e evitar input acidental enquanto o usuário "não está olhando". Como
+  `apps/desktop` é uma janela separada, focá-la durante a partida (por exemplo pra pausar/encerrar a
+  captura) pausa o jogo junto. Não há forma de evitar isso enquanto a captura depender de uma janela
+  separada roubando o foco — ver `docs/REMOTE_PLAY_CAPTURE.md`, seção de riscos, e a decisão de priorizar
+  uma extensão de navegador como próximo passo (roda dentro da própria aba, nunca precisa de foco).
+- Após os 4 achados acima, a validação manual confirmou de ponta a ponta: login, consentimento, seleção
+  de janela (incluindo listar de verdade uma aba real do Xbox Remote Play via `xbox.com/play`), preview
+  ao vivo, início/pausa/retomada/encerramento de sessão, upload de frames e classificação de estado
+  (`menu`/`match_running`) rodando sobre dados reais. `GameEvent`/`CoachFeedback` continuam não sendo
+  gerados nesta validação porque a sessão de captura não tem `matchId` associado (gap já conhecido,
+  documentado desde a 0.34.0) — não é um bug novo.
+
 ## [0.34.0] — 2026-07-18
 
 ### Added
