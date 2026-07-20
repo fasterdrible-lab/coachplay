@@ -9,6 +9,14 @@ const sora = Sora({ subsets: ['latin'], weight: ['400', '500', '600', '700'], va
 export const metadata: Metadata = {
   title: 'Coach Play — Analise sua partida de EA FC',
   description: 'Plataforma de análise de partidas de EA FC com IA. Identifique seus erros e melhore seu jogo.',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

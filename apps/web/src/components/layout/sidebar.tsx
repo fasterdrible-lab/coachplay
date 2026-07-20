@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -94,8 +95,8 @@ export function Sidebar() {
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-white/[0.08] bg-ink2/60 backdrop-blur-xl">
       {/* Logo */}
       <div className="flex items-center gap-2.5 border-b border-white/[0.08] px-4 py-5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-gold-bright to-gold shadow-gold">
-          <span className="text-xs font-bold text-[#14100a]">CP</span>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg shadow-gold">
+          <Image src="/logo-mark.png" alt="Coach Play" width={32} height={32} />
         </div>
         <span className="font-display font-semibold text-[#f8f8fc]">Coach Play</span>
       </div>

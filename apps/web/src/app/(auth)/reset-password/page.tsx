@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Eye, EyeOff, Check, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import { api } from '../../../lib/api';
 import { Button } from '../../../components/ui/button';
@@ -225,8 +226,8 @@ export default function ResetPasswordPage() {
     <main className="min-h-screen flex items-center justify-center bg-ink px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-gold-bright to-gold shadow-gold mb-4">
-            <span className="text-[#14100a] text-xl font-bold">C</span>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl shadow-gold mb-4 overflow-hidden">
+            <Image src="/logo-mark.png" alt="Coach Play" width={48} height={48} priority />
           </div>
           <h1 className="text-2xl font-bold text-[#f8f8fc]">Coach Play</h1>
         </div>
