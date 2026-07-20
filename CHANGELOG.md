@@ -1,5 +1,51 @@
 # Changelog — Coach Play
 
+## [0.36.0] — 2026-07-20
+
+### Added
+- **Primeiro deploy em produção real: https://coachplayals.com.br.** O VPS usado já hospeda
+  outros projetos (não é dedicado ao Coach Play), então em vez de `docs/DEPLOY.md` (que assume
+  nginx/certbot próprios), foi criado um caminho alternativo documentado em
+  `docs/DEPLOY_SHARED_VPS.md`:
+  - `docker-compose.vps.yml` (novo) — sem serviços `nginx`/`certbot` próprios; containers
+    renomeados (`coachplay-postgres`, `coachplay-redis`, `coachplay-api`, `coachplay-web`)
+    conectados também à rede Docker do nginx que já roda no VPS pra outro projeto, evitando
+    o conflito de porta 80/443 que o `docker-compose.prod.yml` original causaria
+  - `deploy/nginx/coachplay-shared-vps.conf.template` (novo) — vhost pro nginx compartilhado,
+    sem depender de webroot pro desafio ACME
+  - Certificado TLS emitido via desafio **DNS-01** (`certbot-dns-cloudflare`, token de API restrito
+    à zona do domínio) em vez de webroot — não exige nenhuma mudança no nginx que já estava no ar,
+    e mantém renovação automática funcionando (diferente do DNS-01 manual, que exigiria repetir a
+    validação a cada renovação)
+
+### Fixed
+Dois bugs de produção encontrados nesta validação, nenhum coberto antes porque ninguém tinha
+rodado um build limpo/deploy real desde as mudanças que os introduziram:
+
+- **`apps/api/Dockerfile` e `apps/web/Dockerfile`**: `npm ci` rodava antes de
+  `apps/api/prisma/schema.prisma` existir no contexto de build. O `postinstall: prisma generate`
+  do `apps/api/package.json` (adicionado na 0.29.0 pra corrigir o build na Vercel) dispara em
+  **qualquer** `npm ci` na raiz do workspace — inclusive ao buildar só a imagem do `web`, que nem
+  usa Prisma diretamente. Corrigido: `COPY apps/api/prisma apps/api/prisma` antes do `RUN npm ci`
+  nos dois Dockerfiles.
+- **`docker-compose.prod.yml`** (bug pré-existente, não só na variante nova): o serviço `web`
+  também lê o `.env` compartilhado com a API via `env_file`, que tem `PORT=3001` (pensado só pra
+  API) — o Next.js standalone herdava essa porta em vez de 3000, e o `proxy_pass` do nginx pro
+  `web:3000` retornava 502. Corrigido com `environment: PORT: 3000` explícito no serviço `web`
+  (sobrepõe o valor herdado do `.env` compartilhado). Afeta qualquer deploy de VPS dedicado feito
+  com a versão anterior deste arquivo.
+
+### Notes
+- Testado de ponta a ponta contra o domínio real: `/login` (200), `/api/v1/plans` (401, rota
+  protegida respondendo corretamente), redirect de `/` sem sessão ativa. Certificado válido até
+  2026-10-18.
+- Chaves de IA (Anthropic/OpenAI) deixadas propositalmente sem configurar via variável de
+  ambiente em produção — a decisão foi configurá-las depois pelo painel admin (`/admin/usage`),
+  já suportado desde a 0.30.0.
+- A senha root do VPS foi compartilhada em texto durante a sessão de deploy (só para autorizar
+  a chave SSH usada nos comandos) — recomendado trocá-la (`passwd`) por precaução, já que ficou
+  registrada no histórico da conversa.
+
 ## [0.35.0] — 2026-07-20
 
 ### Fixed

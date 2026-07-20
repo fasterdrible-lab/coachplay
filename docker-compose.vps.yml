@@ -1,0 +1,111 @@
+# Variante de docker-compose.prod.yml para VPS **compartilhado** com outros
+# projetos (ver docs/DEPLOY_SHARED_VPS.md). Diferenças em relação ao
+# docker-compose.prod.yml (VPS dedicado):
+#   - sem serviços nginx/certbot próprios — este VPS já tem outro projeto
+#     rodando um nginx nas portas 80/443; o Coach Play entra como mais um
+#     vhost na config desse nginx já existente (ver deploy/nginx/coachplay-shared-vps.conf.template)
+#   - nomes de container prefixados (coachplay-*) e api/web também conectados
+#     à rede Docker externa do nginx compartilhado, pra ele conseguir
+#     alcançar os containers do Coach Play
+name: coachplay
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: coachplay-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    container_name: coachplay-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: coachplay-api:latest
+    container_name: coachplay-api
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/repo/apps/api/uploads
+    networks:
+      internal:
+      shared_proxy:
+        aliases: [coachplay-api]
+
+  # Serviço sob demanda: `docker compose -f docker-compose.vps.yml run --rm migrate`
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrator
+    image: coachplay-migrator:latest
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [internal]
+    profiles: ['tools']
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    image: coachplay-web:latest
+    container_name: coachplay-web
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # .env é compartilhado com o serviço "api" e tem PORT=3001 (pra ele); sem este
+      # override, o Next.js standalone herda esse valor e passa a escutar em 3001 em
+      # vez de 3000, quebrando o proxy_pass do nginx (achado nesta mesma validação de deploy)
+      PORT: 3000
+    depends_on:
+      - api
+    networks:
+      internal:
+      shared_proxy:
+        aliases: [coachplay-web]
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+
+networks:
+  internal:
+  # Rede do nginx que já roda nesse VPS para outro projeto (ver
+  # docs/DEPLOY_SHARED_VPS.md) — não é criada por este compose, só conectamos
+  # os containers do Coach Play a ela para o nginx existente alcançá-los.
+  shared_proxy:
+    external: true
+    name: easysub_easysub

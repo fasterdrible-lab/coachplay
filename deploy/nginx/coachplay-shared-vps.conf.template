@@ -1,0 +1,60 @@
+# Vhost para o Coach Play num nginx que já existe no VPS e serve outros
+# projetos (ver docs/DEPLOY_SHARED_VPS.md). Diferente de coachplay.conf.template:
+#   - não tem location /.well-known/acme-challenge/ — o certificado deste
+#     domínio foi emitido via desafio DNS-01 (certbot certonly --manual
+#     --preferred-challenges dns), não webroot, então o nginx compartilhado
+#     não precisa de acesso de escrita/leitura a nenhum diretório de desafio
+#   - proxy_pass aponta para coachplay-api/coachplay-web (nomes únicos do
+#     container, não "api"/"web" — evita colisão de alias com os containers
+#     do outro projeto que já roda nesse mesmo nginx)
+#
+# ${DOMAIN} é substituído manualmente (ou via envsubst) antes de copiar para
+# o conf.d do nginx compartilhado.
+
+server {
+    listen 80;
+    server_name ${DOMAIN} www.${DOMAIN};
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${DOMAIN} www.${DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    # Acima do limite de 500MB de upload de vídeo (ver apps/api/src/modules/matches/video.config.ts)
+    client_max_body_size 550M;
+
+    location /api/ {
+        proxy_pass         http://coachplay-api:3001;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+
+    location /uploads/ {
+        proxy_pass       http://coachplay-api:3001;
+        proxy_set_header Host $host;
+    }
+
+    location / {
+        proxy_pass         http://coachplay-web:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        'upgrade';
+        proxy_cache_bypass $http_upgrade;
+    }
+}

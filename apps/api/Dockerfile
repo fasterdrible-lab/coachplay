@@ -18,6 +18,10 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/shared/package.json packages/shared/package.json
+# apps/api/package.json tem "postinstall": "prisma generate" (necessário para builds
+# na Vercel, ver CHANGELOG 0.29.0) — isso dispara em qualquer "npm ci" na raiz do
+# workspace, então o schema precisa existir ANTES do npm ci, não só depois.
+COPY apps/api/prisma apps/api/prisma
 RUN npm ci
 
 COPY apps/api apps/api

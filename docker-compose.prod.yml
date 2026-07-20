@@ -78,6 +78,11 @@ services:
     image: coach-play-web:latest
     restart: unless-stopped
     env_file: .env
+    environment:
+      # .env é compartilhado com o serviço "api" e tem PORT=3001 (pra ele); sem este
+      # override, o Next.js standalone herda esse valor e passa a escutar em 3001 em
+      # vez de 3000, quebrando o proxy_pass do nginx (achado numa validação real de deploy)
+      PORT: 3000
     depends_on:
       - api
     networks: [internal]

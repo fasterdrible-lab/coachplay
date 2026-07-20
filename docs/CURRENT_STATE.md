@@ -1,8 +1,8 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.35.0
+**Versão:** V.0.36.0
 **Data:** 2026-07-20
-**Fase:** Fase 7 — Produção (concluída) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fases 1 e 2, validadas manualmente)
+**Fase:** Fase 7 — Produção (concluída, **em produção real em https://coachplayals.com.br**) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fases 1 e 2, validadas manualmente)
 
 ---
 
@@ -332,6 +332,23 @@
   - Script `start` da API (`node dist/main`) e `CMD` do Dockerfile apontavam para o caminho errado — `nest build` gera `dist/src/main.js`, não `dist/main.js`
 - [x] **Gap crítico de deploy corrigido**: não existiam migrations do Prisma (`apps/api/prisma/migrations/`) — sem elas, `prisma migrate deploy` não criava nenhuma tabela em um banco novo. Gerada a migration inicial (`20260716152320_init`)
 - [x] Build das duas imagens e fluxo completo (`migrate` → `api` → `web`) validado localmente com Docker: registro de usuário, login e roteamento end-to-end confirmados contra Postgres/Redis reais em containers
+
+### Deploy em produção real — coachplayals.com.br (pós Fase 7)
+
+Primeiro deploy de verdade em VPS (2026-07-20). O VPS não é dedicado — já hospeda outros
+projetos, então não seguiu `docs/DEPLOY.md` (que assume nginx/certbot próprios do Coach Play)
+e sim o novo `docs/DEPLOY_SHARED_VPS.md`: sem nginx/certbot próprio, containers renomeados
+(`coachplay-*`) conectados à rede Docker do nginx que já estava rodando pra outro projeto,
+certificado via desafio DNS-01 (Cloudflare API token) em vez de webroot.
+
+- [x] `docker-compose.vps.yml` (novo) + `deploy/nginx/coachplay-shared-vps.conf.template` (novo) + `docs/DEPLOY_SHARED_VPS.md` (novo)
+- [x] **2 novos bugs de produção encontrados e corrigidos, nunca pegos porque ninguém tinha rodado um build limpo desde mudanças anteriores**:
+  - `apps/api/Dockerfile` e `apps/web/Dockerfile` rodavam `npm ci` **antes** de `apps/api/prisma/schema.prisma` existir no contexto de build — o `postinstall: prisma generate` do `apps/api/package.json` (adicionado na 0.29.0 pra corrigir build na Vercel) dispara em qualquer `npm ci` na raiz do workspace, inclusive ao buildar só o `web`. Corrigido: `COPY apps/api/prisma apps/api/prisma` antes do `RUN npm ci` nos dois Dockerfiles
+  - `docker-compose.prod.yml` (e a nova variante `docker-compose.vps.yml`): o serviço `web` também lê o `.env` compartilhado com a API (`PORT=3001`), então o Next.js standalone herdava essa porta em vez de 3000, quebrando o `proxy_pass` do nginx (502). Corrigido com `environment: PORT: 3000` explícito no serviço `web` — afeta qualquer deploy de VPS dedicado feito antes desta correção
+- [x] Certificado TLS real emitido via Let's Encrypt + Cloudflare DNS-01 (`certbot-dns-cloudflare`, token restrito à zona), renovação automática configurada
+- [x] Testado de ponta a ponta contra o domínio real: `/login` (200), `/api/v1/plans` (401, rota protegida respondendo), redirect de `/` sem sessão — certificado válido até 2026-10-18
+- [ ] Chaves de IA (Anthropic/OpenAI) ainda não configuradas em produção — a decisão foi configurar depois pelo painel admin (`/admin/usage`) em vez de variável de ambiente
+- [ ] Senha root do VPS foi compartilhada em texto durante a sessão (só pra autorizar a chave SSH usada no deploy) — recomendado trocá-la (`passwd`) por precaução
 
 ### Módulo Administrador (pós Fase 7)
 - [x] Os 4 stubs de admin (deixados na Fase 7, sem número de task próprio) foram substituídos por telas reais consumindo dados de verdade:
