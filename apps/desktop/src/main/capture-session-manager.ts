@@ -61,6 +61,7 @@ export class CaptureSessionManager implements LocalCaptureController {
     }
 
     const session = await this.backendClient.createCaptureSession({
+      matchId: params.matchId,
       sourceType: params.sourceType,
       sourceName: params.sourceName,
       captureFps: params.captureFps,

@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../main/ipc-channels';
 import { CaptureSourceInfo, StartCaptureParams } from '../main/local-capture-controller';
 import { CaptureSessionSnapshot } from '../main/capture-session-state';
-import { AuthenticatedUser } from '../main/backend-client';
+import { AuthenticatedUser, MatchSummary } from '../main/backend-client';
 
 /**
  * Única porta entre o processo main (Node, acesso a arquivos/rede) e o
@@ -13,6 +13,13 @@ contextBridge.exposeInMainWorld('coachPlay', {
   auth: {
     login: (email: string, password: string): Promise<AuthenticatedUser> =>
       ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGIN, { email, password }),
+  },
+
+  matches: {
+    list: (): Promise<MatchSummary[]> => ipcRenderer.invoke(IPC_CHANNELS.LIST_MATCHES),
+
+    create: (params: { title?: string; gameMode?: string; matchDate?: string }): Promise<MatchSummary> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CREATE_MATCH, params),
   },
 
   capture: {

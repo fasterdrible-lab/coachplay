@@ -1,9 +1,14 @@
 import type { CaptureSourceInfo, StartCaptureParams } from '../main/local-capture-controller';
 import type { CaptureSessionSnapshot } from '../main/capture-session-state';
-import type { AuthenticatedUser } from '../main/backend-client';
+import type { AuthenticatedUser, MatchSummary } from '../main/backend-client';
 
 export interface CoachPlayAuthApi {
   login(email: string, password: string): Promise<AuthenticatedUser>;
+}
+
+export interface CoachPlayMatchesApi {
+  list(): Promise<MatchSummary[]>;
+  create(params: { title?: string; gameMode?: string; matchDate?: string }): Promise<MatchSummary>;
 }
 
 export interface CoachPlayCaptureApi {
@@ -21,6 +26,7 @@ declare global {
   interface Window {
     coachPlay: {
       auth: CoachPlayAuthApi;
+      matches: CoachPlayMatchesApi;
       capture: CoachPlayCaptureApi;
     };
   }

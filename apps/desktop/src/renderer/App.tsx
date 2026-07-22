@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { LoginScreen } from './components/LoginScreen';
 import { ConsentScreen } from './components/ConsentScreen';
+import { MatchSelector } from './components/MatchSelector';
 import { SourceSelector } from './components/SourceSelector';
 import { CapturePreview } from './components/CapturePreview';
 import { SessionControls } from './components/SessionControls';
@@ -8,11 +9,12 @@ import type { CaptureSourceInfo } from '../main/local-capture-controller';
 import type { CaptureSessionSnapshot } from '../main/capture-session-state';
 import type { AuthenticatedUser } from '../main/backend-client';
 
-type Step = 'login' | 'consent' | 'select-source' | 'capturing';
+type Step = 'login' | 'consent' | 'select-match' | 'select-source' | 'capturing';
 
 export function App() {
   const [step, setStep] = useState<Step>('login');
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [matchId, setMatchId] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<CaptureSourceInfo | null>(null);
   const [snapshot, setSnapshot] = useState<CaptureSessionSnapshot | null>(null);
   const [error, setError] = useState('');
@@ -30,6 +32,7 @@ export function App() {
     setError('');
     try {
       const result = await window.coachPlay.capture.start({
+        matchId: matchId ?? undefined,
         sourceType: source.type,
         sourceName: source.name,
         captureFps: 2,
@@ -57,8 +60,9 @@ export function App() {
 
   async function handleStop() {
     setSnapshot(await window.coachPlay.capture.stop());
-    setStep('select-source');
+    setStep('select-match');
     setSelectedSource(null);
+    setMatchId(null);
   }
 
   return (
@@ -87,7 +91,16 @@ export function App() {
         />
       )}
 
-      {step === 'consent' && <ConsentScreen onAccept={() => setStep('select-source')} />}
+      {step === 'consent' && <ConsentScreen onAccept={() => setStep('select-match')} />}
+
+      {step === 'select-match' && (
+        <MatchSelector
+          onSelect={(id) => {
+            setMatchId(id);
+            setStep('select-source');
+          }}
+        />
+      )}
 
       {step === 'select-source' && <SourceSelector onSelect={handleSourceSelected} />}
 

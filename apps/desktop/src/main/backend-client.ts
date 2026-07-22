@@ -12,6 +12,15 @@ export interface AuthenticatedUser {
   role: string;
 }
 
+export interface MatchSummary {
+  id: string;
+  title: string | null;
+  gameMode: string | null;
+  matchDate: string | null;
+  status: string;
+  createdAt: string;
+}
+
 export class BackendClient {
   private accessToken: string | null = null;
 
@@ -44,6 +53,25 @@ export class BackendClient {
     const body = (await res.json()) as { accessToken: string; user: AuthenticatedUser };
     this.accessToken = body.accessToken;
     return body;
+  }
+
+  async listMatches(): Promise<MatchSummary[]> {
+    const res = await fetch(`${this.baseUrl}/matches?status=pending&limit=20`, {
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) throw new Error(`Falha ao listar partidas (HTTP ${res.status})`);
+    const body = (await res.json()) as { data: MatchSummary[] };
+    return body.data;
+  }
+
+  async createMatch(params: { title?: string; gameMode?: string; matchDate?: string }): Promise<MatchSummary> {
+    const res = await fetch(`${this.baseUrl}/matches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.authHeaders() },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) throw new Error(`Falha ao criar partida (HTTP ${res.status})`);
+    return res.json() as Promise<MatchSummary>;
   }
 
   async createCaptureSession(params: {

@@ -4,6 +4,8 @@
  */
 export const IPC_CHANNELS = {
   AUTH_LOGIN: 'auth:login',
+  LIST_MATCHES: 'matches:list',
+  CREATE_MATCH: 'matches:create',
   LIST_SOURCES: 'capture:list-sources',
   START: 'capture:start',
   PAUSE: 'capture:pause',

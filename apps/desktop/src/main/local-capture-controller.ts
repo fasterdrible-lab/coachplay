@@ -8,6 +8,7 @@ export interface CaptureSourceInfo {
 }
 
 export interface StartCaptureParams {
+  matchId?: string;
   sourceType: CaptureSourceType;
   sourceName: string;
   captureFps?: number;

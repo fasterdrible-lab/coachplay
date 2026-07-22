@@ -14,6 +14,14 @@ export function registerIpcHandlers(
     return user;
   });
 
+  ipcMain.handle(IPC_CHANNELS.LIST_MATCHES, () => backendClient.listMatches());
+
+  ipcMain.handle(
+    IPC_CHANNELS.CREATE_MATCH,
+    (_event, params: { title?: string; gameMode?: string; matchDate?: string }) =>
+      backendClient.createMatch(params),
+  );
+
   ipcMain.handle(IPC_CHANNELS.LIST_SOURCES, () => manager.listSources());
 
   ipcMain.handle(IPC_CHANNELS.START, (_event, params: StartCaptureParams) => manager.start(params));
