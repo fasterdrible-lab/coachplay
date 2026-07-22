@@ -7,6 +7,8 @@ Coach Play é um **monolito modular** com Clean Architecture e Domain-Driven Des
 ```
 [Coach Play Desktop — Electron, apps/desktop]  ──HTTPS/JWT──┐
         │ (Xbox Remote Play na tela do PC)                  │
+[Coach Play Extension — Chrome MV3, apps/extension] ─HTTPS/JWT─┤
+        │ (Xbox Remote Play na aba do navegador)             │
         ▼                                                    ▼
 [Usuário / Browser]                                [NestJS API — Port 3001]
         │                                             ├── Auth Module
@@ -223,14 +225,22 @@ apps/desktop (Electron)              apps/api
   servidor HTTP 127.0.0.1                GET .../status
   (/local/capture/*)                     POST .../{frames,segments}
                                         MatchEventsController
-                                          GET /matches/:id/events
-                                          GET /matches/:id/feedbacks
+apps/extension (Chrome MV3)              GET /matches/:id/events
+  content script em xbox.com/play        GET /matches/:id/feedbacks
+  <video> da aba + <canvas>       ──►
+  service worker (BackendClient)
+  chrome.storage.session (token)
 ```
 
-Só captura pixels da tela (janela/monitor/região autorizados) — nenhuma integração com
-protocolo do Xbox, memória do jogo ou API privada da EA. Fase 1 (atual): grava sessão,
-frames e clipes; Fases 2–4 (roadmap, não implementadas): detecção de estado de partida,
-eventos, feedback de IA e voz.
+Só captura pixels da tela (janela/monitor/região, ou o `<video>` da aba no caso da extensão) —
+nenhuma integração com protocolo do Xbox, memória do jogo ou API privada da EA. `apps/desktop` e
+`apps/extension` são dois frontends de captura para o mesmo `CaptureSessionsModule`: o desktop
+cobre o app nativo Xbox no Windows (e o navegador, via janela/monitor), a extensão cobre só o
+fluxo via navegador mas roda dentro da própria aba — nunca precisa do foco que o Remote Play exige
+para não pausar o stream (limitação do desktop documentada em `docs/REMOTE_PLAY_CAPTURE.md`). Fase
+1 (atual): grava sessão, frames e clipes; Fases 2–4 (roadmap, parcialmente implementadas):
+detecção de estado de partida e eventos (Fase 2, ver seção do módulo Capture Sessions), feedback
+de IA e voz.
 
 ---
 

@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Coach Play — Captura Remote Play",
+  "version": "0.1.0",
+  "description": "Captura a partida do Xbox Remote Play direto na aba (sem app separado) para análise no Coach Play.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.xbox.com/*", "http://localhost:3001/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.xbox.com/*/play/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Coach Play — Captura Remote Play"
+  }
+}

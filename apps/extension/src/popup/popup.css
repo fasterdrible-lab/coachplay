@@ -1,0 +1,62 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  width: 320px;
+  background: #080612;
+  color: #f8f8fc;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  font-size: 13px;
+}
+
+#root { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+h1 { font-size: 15px; margin: 0; }
+
+p { margin: 0; color: rgba(248, 248, 252, 0.6); line-height: 1.4; }
+
+.error { color: #e2718a; }
+
+label { display: block; }
+
+input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #f8f8fc;
+  font-size: 13px;
+}
+
+button {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: #d9a441;
+  color: #14100a;
+}
+
+button:hover { background: #f2c879; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+button.secondary { background: rgba(255, 255, 255, 0.08); color: #f8f8fc; }
+button.danger { background: rgba(226, 113, 138, 0.15); color: #e2718a; }
+
+.status-row { display: flex; align-items: center; gap: 8px; }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-running { background: #6fcf97; }
+.status-paused { background: #e0954a; }
+.status-failed { background: #e2718a; }
+
+.actions { display: flex; gap: 8px; }
+
+.password-row { display: flex; gap: 6px; align-items: stretch; margin-top: 4px; }
+.password-row input { flex: 1; margin-top: 0; }
+.password-row button { flex-shrink: 0; padding: 6px 10px; }

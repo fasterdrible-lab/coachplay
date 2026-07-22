@@ -13,8 +13,10 @@
     "build:api": "npm run build --workspace=apps/api",
     "build:web": "npm run build --workspace=apps/web",
     "build:desktop": "npm run build --workspace=apps/desktop",
+    "build:extension": "npm run build --workspace=apps/extension",
     "test:api": "npm run test --workspace=apps/api",
     "test:desktop": "npm run test --workspace=apps/desktop",
+    "test:extension": "npm run test --workspace=apps/extension",
     "test:e2e": "npm run test:e2e --workspace=apps/api"
   },
   "engines": {

@@ -1,0 +1,20 @@
+{
+  "name": "@coach-play/extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "npm run typecheck && npm run bundle && npm run copy-static",
+    "typecheck": "tsc -p tsconfig.json",
+    "bundle": "esbuild src/background/index.ts --bundle --outfile=dist/background.js --format=iife --target=chrome110 && esbuild src/content/index.ts --bundle --outfile=dist/content.js --format=iife --target=chrome110 && esbuild src/popup/popup.ts --bundle --outfile=dist/popup.js --format=iife --target=chrome110",
+    "copy-static": "node scripts/copy-static.mjs",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.278",
+    "@types/jest": "^29.5.12",
+    "esbuild": "^0.21.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.5",
+    "typescript": "^5.4.5"
+  }
+}
