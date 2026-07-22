@@ -335,20 +335,49 @@ overflow de `INT4` no timestamp dos frames, trava em cascata no `CaptureFrameAna
 todo frame em `skipped`) — detalhes em `CHANGELOG.md` 0.35.0. Também revelou a limitação de foco descrita
 na tabela de riscos abaixo, que motivou priorizar a extensão de navegador no roadmap.
 
+**Extensão de navegador — implementada em 2026-07-21 (`apps/extension`, ver `CHANGELOG.md` 0.37.0):**
+caminho alternativo ao `apps/desktop` para o fluxo via browser (`xbox.com/play`). Captura direta do
+`<video>`/`<canvas>` da aba em vez de re-fotografar uma janela do sistema, e resolve estruturalmente
+a limitação de foco descrita na tabela de riscos abaixo, já que roda dentro da própria aba e nunca
+precisa do foco da página do Remote Play para pausar/encerrar a captura. Reaproveita 100% do
+`CaptureSessionsModule` já existente (mesmos endpoints do desktop) — nenhuma rota nova. Trade-off:
+cobre só o fluxo via navegador, não o app nativo Xbox no Windows, que continua exigindo o
+`apps/desktop`. Ainda não validada contra uma sessão real (só o `apps/desktop` teve essa validação,
+2026-07-20) — carregar em `chrome://extensions` e testar no navegador do usuário é o próximo passo
+específico da extensão.
+
+**Vínculo da sessão de captura com uma `Match` — implementado em 2026-07-22 (ver `CHANGELOG.md`
+0.38.0):** `apps/desktop` ganhou a tela `MatchSelector` (entre consentimento e seleção de fonte) e
+`apps/extension` o mesmo fluxo no popup (`renderSelectMatch`) — ambos listam partidas pendentes
+(`GET /matches?status=pending`) ou criam uma nova (`POST /matches`) antes de iniciar a captura, e o
+`matchId` escolhido flui até `CaptureSessionsService.create` (que já aceitava o campo desde a Fase
+1). Nenhuma rota nova no backend.
+
+**Validação manual de ponta a ponta com `matchId` — feita em 2026-07-22 (`apps/extension`, ver
+`CHANGELOG.md` 0.38.2/0.38.3):** login, `renderSelectMatch` e captura ao vivo confirmados contra uma
+sessão real de Xbox Remote Play — 162 frames de uma sessão de teste chegaram na API com `matchId`
+corretamente vinculado, mas **todos corrompidos**: um bug de transporte fazia `chrome.runtime.sendMessage`
+perder o `ArrayBuffer` do frame entre o content script e o service worker, então cada frame salvo em
+disco era 15 bytes de texto `"[object Object]"`, nunca uma imagem real — por isso
+`GameStateDetectorService` falhava em 100% das amostras (`Input file contains unsupported image
+format`), não por falta de calibração dos limiares como o diagnóstico inicial da mesma sessão supôs.
+Corrigido codificando o frame em base64 antes de enviar (`src/shared/binary.ts`). Ainda falta
+repetir a validação com o fix aplicado para confirmar que os frames chegam como PNG válido de
+verdade. `apps/desktop` segue sem essa validação específica (só a extensão foi testada nesta
+rodada); usa IPC do Electron para o mesmo tipo de dado, transporte diferente do `chrome.runtime`,
+então não há evidência de que tenha o mesmo bug — mas também não foi verificado.
+
 **Próximos passos (não implementados agora, ficam no roadmap):**
-- **Extensão de navegador** (prioridade atual): caminho alternativo ao `apps/desktop` para o fluxo via
-  browser (`xbox.com/play`). Motivação além de eficiência (captura direta do `<video>`/`<canvas>` do
-  player em vez de re-fotografar a janela do sistema): resolve estruturalmente a limitação de foco
-  descrita abaixo, já que uma extensão roda dentro da própria aba e nunca precisa roubar o foco da
-  página do Remote Play para pausar/encerrar a captura. Trade-off: cobriria só o fluxo via navegador,
-  não o app nativo Xbox no Windows, que o `apps/desktop` também suporta.
-- Vínculo da sessão de captura com uma `Match` (`matchId`) — sem ele, `GameEvent`/`CoachFeedback` nunca
-  são persistidos mesmo com a classificação de estado funcionando; nem `apps/desktop` nem a futura
-  extensão têm hoje uma forma de criar/escolher uma partida antes de iniciar a captura.
+- **Revalidar a captura da extensão com o fix de transporte de frame, depois calibrar os limiares
+  de detecção com captura real (prioridade atual)** — `STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`,
+  `SPIKE_THRESHOLD` e os 2 de confiança seguem validados só com imagens sintéticas; a tentativa de
+  calibrar com a sessão real de 2026-07-22 não é aproveitável porque todos os frames estavam
+  corrompidos (ver acima). Sem frames reais legíveis, `GameEvent`/`CoachFeedback` não são gerados
+  mesmo com `matchId` vinculado.
 - Geração automática de `VideoSegment` a partir de eventos detectados (FFmpeg no `apps/desktop`
   concatenando frames do `FrameBuffer`, `BackendClient.uploadSegment`).
-- Calibração dos limiares de detecção com captura real de Remote Play (EA FC), e/ou heurísticas
-  específicas de HUD para distinguir `paused`/`replay`/`post_match`.
+- Heurísticas específicas de HUD para distinguir `paused`/`replay`/`post_match` (hoje só
+  `menu`/`match_running` são emitidos).
 - Fase 3: voz, tracking visual, comparação entre partidas.
 - Fase 4: modelo próprio (YOLO) treinado com dataset anotado sob consentimento.
 
@@ -364,4 +393,4 @@ na tabela de riscos abaixo, que motivou priorizar a extensão de navegador no ro
 | `desktopCapturer`/`getUserMedia` não garantem 100% de compatibilidade com todo driver de vídeo | Em alguns PCs a captura de uma janela específica pode falhar e só o monitor inteiro funcionar | UI expõe monitor inteiro como alternativa sempre disponível; detecção de falha avisa o usuário em vez de travar silenciosamente |
 | Nenhum dataset anotado existe ainda | YOLO/tracking visual (Fase 4) não têm previsão real sem coleta de dados | Fases 1–3 usam heurísticas + IA multimodal em texto/imagem estática, não modelo customizado |
 | Este documento e o código descrevem a lógica de captura e pipeline — a captura real de uma janela de Remote Play não foi (e não pôde ser) testada neste ambiente de desenvolvimento, que não tem GUI do Windows nem o Xbox Remote Play instalado | Bugs específicos de ambiente Windows real só aparecem em teste manual do usuário | Testes automatizados cobrem tudo que não depende de GUI (state machine, rotas HTTP, service do backend); captura de tela real precisa ser validada manualmente no PC do usuário antes de considerar o MVP "pronto" — **feito em 2026-07-20**, ver `CHANGELOG.md` 0.35.0 |
-| Xbox Remote Play/Cloud Gaming pausa o stream sozinho quando a aba/janela perde foco ou visibilidade (comportamento do próprio produto Microsoft, não algo que o Coach Play controla) | Focar a janela do `apps/desktop` durante a partida (ex.: para pausar/encerrar a captura) pausa o jogo junto — atrito real de UX descoberto na validação manual | Não há mitigação possível enquanto a captura for uma janela separada; motivou priorizar a extensão de navegador (roda dentro da própria aba, nunca precisa de foco) como próximo passo do roadmap |
+| Xbox Remote Play/Cloud Gaming pausa o stream sozinho quando a aba/janela perde foco ou visibilidade (comportamento do próprio produto Microsoft, não algo que o Coach Play controla) | Focar a janela do `apps/desktop` durante a partida (ex.: para pausar/encerrar a captura) pausa o jogo junto — atrito real de UX descoberto na validação manual | Não há mitigação possível para o `apps/desktop` enquanto a captura for uma janela separada; resolvido para o fluxo via navegador pela extensão (`apps/extension`, implementada em 2026-07-21), que roda dentro da própria aba e nunca precisa de foco — segue existindo apenas para quem usa o app nativo Xbox no Windows |

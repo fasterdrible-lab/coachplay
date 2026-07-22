@@ -14,6 +14,10 @@ out/
 .env.local
 .env.*.local
 
+# Override local de portas Docker (este host já roda Postgres/Redis de outros
+# projetos nas portas padrão 5432/6379) — específico da máquina, não commitar
+docker-compose.override.yml
+
 # Uploads de vídeo
 uploads/
 

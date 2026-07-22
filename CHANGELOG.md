@@ -1,5 +1,54 @@
 # Changelog — Coach Play
 
+## [0.38.3] — 2026-07-22
+
+### Fixed
+- **Crítico — todo frame capturado pela extensão chegava corrompido na API**: `chrome.runtime.sendMessage` não transfere `ArrayBuffer` de forma confiável entre o content script (isolated world) e o service worker — o valor chegava do outro lado como um objeto genérico, e `new Blob([buffer])` em `background/backend-client.ts` serializava isso silenciosamente como a string `"[object Object]"` em vez dos bytes reais da imagem. Todo frame salvo em disco tinha exatos 15 bytes de texto, nunca um PNG — por isso `GameStateDetectorService` falhava em 100% das amostras com `Input file contains unsupported image format` (o que na 0.38.2 eu tinha diagnosticado incorretamente como "limiares não calibrados"; a causa real é esta, não calibração).
+  - Corrigido convertendo o frame para base64 antes de mandar a mensagem (`src/shared/binary.ts`, novo: `arrayBufferToBase64`/`base64ToArrayBuffer`) — uma string comum já é serializada corretamente pela API de mensagens, diferente do `ArrayBuffer` cru
+  - `content/index.ts` codifica o frame antes de enviar; `background/index.ts` decodifica antes de repassar para `BackendClient.uploadFrame`; `ContentFramePayload.buffer: ArrayBuffer` virou `ContentFramePayload.base64: string`
+  - 3 novos testes de round-trip (`tests/binary.spec.ts`) — total 8 testes em `apps/extension`
+  - Limpeza: os 736 arquivos de frame corrompidos (15 bytes cada) e os registros correspondentes em `frame_samples` (todos com `gameState: null`, nenhum jamais analisado) removidos do ambiente de teste local
+
+### Notes
+- Esta correção não foi validada ainda contra uma sessão real (precisa recarregar a extensão + reabrir a aba do Xbox do zero, mesmo cuidado da validação anterior) — próximo passo antes de seguir para a calibração de limiares de verdade
+- `apps/desktop` usa um transporte diferente (IPC do Electron via `ipcRenderer.invoke`, não `chrome.runtime.sendMessage`) para o mesmo tipo de dado — não há evidência de que tenha o mesmo bug, mas também não foi verificado; fica como algo a confirmar se/quando o desktop for testado com `matchId`
+
+## [0.38.1] — 2026-07-22
+
+### Added
+- **Login da extensão: mostrar/ocultar senha + salvar senha pelo gerenciador do Chrome** (`apps/extension/src/popup/popup.ts`), achado ao validar o login pela primeira vez contra a API real:
+  - Botão de olho (👁/🙈) alterna `type="password"`/`type="text"` no campo de senha, mesmo padrão já usado no login web (`apps/web`)
+  - Campos de login passaram a viver dentro de um `<form>` real com `submit` (antes era só um `<div>` com clique no botão) — é isso que faz o Chrome oferecer "Salvar senha para este site?"; o Coach Play continua sem guardar a senha em nenhum lugar (mesmo princípio já documentado para o `apps/desktop`), quem passa a lembrar/preencher é o próprio gerenciador de senhas do navegador
+
+## [0.38.0] — 2026-07-22
+
+### Added
+- **Vínculo da sessão de captura com uma `Match`** — fecha o gargalo que bloqueava o valor de ponta a ponta dos dois caminhos de captura (`apps/desktop` e `apps/extension`): até aqui, nenhum dos dois tinha uma tela para criar/escolher uma partida antes de iniciar, então `GameEvent`/`CoachFeedback` nunca eram persistidos mesmo com a classificação de estado/eventos funcionando (`CaptureSessionsModule` já aceitava `matchId` desde a Fase 1, só não havia UI que o preenchesse).
+  - `apps/desktop`: nova tela `MatchSelector` entre o consentimento e a seleção de fonte — lista partidas pendentes do usuário (`GET /matches?status=pending`) ou cria uma nova (`POST /matches`, só título opcional); `matchId` escolhido flui por `App.tsx` → IPC `capture:start` → `CaptureSessionManager.start()` → `BackendClient.createCaptureSession`. Novos canais IPC `matches:list`/`matches:create` (`ipc-channels.ts`, `ipc-handlers.ts`, `preload/index.ts`, `coach-play-api.d.ts`)
+  - `apps/extension`: mesmo fluxo no popup — `renderSelectMatch` lista/cria partidas via novas mensagens `matches:list`/`matches:create` (`background/index.ts`, `background/backend-client.ts`) antes de `renderStart`, que agora exige `matchId` e o envia em `CAPTURE_START`
+  - Nenhuma rota nova no backend — `CreateCaptureSessionDto.matchId` e `CaptureSessionsService.assertMatchOwner` já existiam e nunca tinham um cliente que os usasse de fato
+  - Builds (`tsc`/`esbuild`) e as suítes existentes de `apps/desktop` (15 testes) e `apps/extension` (5 testes) validados sem regressão; nenhum teste novo — a mudança é toda de UI que orquestra chamadas já cobertas ou é fetch simples sem lógica própria (mesmo padrão de `backend-client.ts`, que também não tinha testes unitários)
+
+### Notes
+- Ainda não validado contra uma sessão real de Remote Play com `matchId` de ponta a ponta (nem `apps/desktop` nem `apps/extension` tiveram essa validação manual completa nesta rodada) — próximo passo natural antes de considerar o pipeline de captura "completo" é repetir a validação manual da 0.35.0 já com uma partida vinculada, confirmando que `GameEvent`/`CoachFeedback` aparecem em `/matches/:id`
+- Roadmap restante em `docs/REMOTE_PLAY_CAPTURE.md`: geração automática de `VideoSegment` a partir de eventos, calibração dos limiares de detecção com captura real, Fase 3 (voz/tracking) e Fase 4 (modelo próprio)
+
+## [0.37.0] — 2026-07-21
+
+### Added
+- **Novo workspace `apps/extension`: extensão Chrome (Manifest V3) para captura via Remote Play direto na aba**, caminho alternativo ao `apps/desktop` para o fluxo via navegador (`xbox.com/.../play/...`). Resolve estruturalmente a limitação de foco encontrada na validação manual do desktop (CHANGELOG 0.35.0): o Remote Play pausa o stream quando a janela que tem foco não é a dele, e uma extensão nunca precisa roubar o foco da aba pra pausar/encerrar a captura, porque roda dentro dela. Plano e trade-offs em `docs/REMOTE_PLAY_CAPTURE.md`.
+  - `src/background/` (service worker): `BackendClient` reaproveita os mesmos endpoints já usados pelo `apps/desktop` (`POST /auth/login`, `POST /capture-sessions`, `PATCH .../{pause,resume,stop}`, `POST .../frames`) — nenhuma rota nova no backend; `SessionStore` guarda token e estado da sessão em `chrome.storage.session` (só memória do navegador, nunca disco, some ao fechar o Chrome — mesmo princípio de privacidade do token do desktop guardado só em memória do processo main)
+  - `src/content/index.ts` injetado em `xbox.com/*/play/*`: `pickBestVideoIndex` (`src/shared/video-picker.ts`) escolhe qual `<video>` da página é o player do Remote Play (maior área de exibição entre os que estão de fato tocando), sem depender de um seletor CSS específico do Xbox que pode mudar a qualquer momento; amostra frames via `<canvas>`/`toBlob` e envia ao background por `chrome.runtime.sendMessage`
+  - `src/popup/` — UI sem framework (HTML/DOM puro, proporcional ao tamanho da tela): login, tela de consentimento com o mesmo texto de transparência já usado no desktop (só pixels da aba, sem engenharia reversa do Xbox/EA FC), controles iniciar/pausar/retomar/encerrar
+  - `elapsedMs` desde o início da sessão (nunca `Date.now()` absoluto) já usado desde a primeira versão do content script — evita de origem o overflow de `INT4` que só foi descoberto no `apps/desktop` durante a validação manual (CHANGELOG 0.35.0)
+  - 5 testes (`video-picker.spec.ts`) — única lógica pura testável sem um navegador real; build (`tsc` + `esbuild` via `npm run build --workspace=apps/extension`) validado
+  - `package.json` raiz: novos scripts `build:extension`/`test:extension`
+
+### Notes
+- Carregar a extensão em `chrome://extensions` e validar contra uma sessão real de Xbox Remote Play (login, consentimento, captura ao vivo) ainda depende de teste manual no navegador do usuário — este ambiente de desenvolvimento não tem GUI de navegador, mesma situação que o `apps/desktop` teve até a validação da 0.35.0
+- Trade-off já discutido em `docs/REMOTE_PLAY_CAPTURE.md`: a extensão cobre só o fluxo via navegador (`xbox.com/play`), não o app nativo Xbox no Windows, que continua exigindo o `apps/desktop`
+- Mesmo gap dos dois caminhos de captura permanece: sessão sem `matchId` associado, então `GameEvent`/`CoachFeedback` continuam não sendo persistidos mesmo com a captura funcionando — vira a próxima prioridade do roadmap (ver `docs/CURRENT_STATE.md`)
+
 ## [0.36.2] — 2026-07-20
 
 ### Added

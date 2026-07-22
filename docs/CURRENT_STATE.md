@@ -1,8 +1,8 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.36.2
-**Data:** 2026-07-20
-**Fase:** Fase 7 — Produção (concluída, **em produção real em https://coachplayals.com.br**) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fases 1 e 2, validadas manualmente)
+**Versão:** V.0.38.3
+**Data:** 2026-07-22
+**Fase:** Fase 7 — Produção (concluída, **em produção real em https://coachplayals.com.br**) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fases 1 e 2, validadas manualmente, + extensão de navegador)
 
 ---
 
@@ -418,16 +418,52 @@ jogo). Plano completo, riscos e próximas fases em [`docs/REMOTE_PLAY_CAPTURE.md
 - [x] **Limitação real descoberta (não é bug do Coach Play)**: o Xbox Remote Play/Cloud Gaming pausa o stream sozinho quando a aba/janela perde foco ou visibilidade (comportamento do próprio produto Microsoft, pra economizar banda e evitar input acidental) — então focar a janela do `apps/desktop` durante a partida (ex.: pra pausar/encerrar a captura) pausa o jogo junto. Não há como evitar isso a partir do nosso app enquanto ele for uma janela separada — ver `docs/REMOTE_PLAY_CAPTURE.md`, seção de riscos
 - [ ] Calibração dos limiares de detecção (`STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`, `SPIKE_THRESHOLD` e os 2 de confiança) com captura real — a validação confirmou que a classificação `menu`/`match_running` roda nos frames reais, mas os limiares em si (ajuste fino) ainda não foram calibrados com dados reais o suficiente
 - [ ] Geração automática de `VideoSegment` a partir de eventos detectados (FFmpeg no `apps/desktop`) — `SegmentReason.event_detected` ainda sem uso
-- [ ] Vínculo da sessão de captura com uma `Match` (`matchId`) — sem isso, `GameEvent`/`CoachFeedback` nunca são persistidos mesmo com a classificação funcionando; não existe tela no app desktop pra criar/escolher uma partida ainda
+- [x] **Vínculo da sessão de captura com uma `Match` (`matchId`)** — nova tela `MatchSelector` (`apps/desktop`, entre consentimento e seleção de fonte) e o mesmo fluxo no popup da extensão (`renderSelectMatch`), listando partidas pendentes (`GET /matches?status=pending`) ou criando uma nova (`POST /matches`) antes de iniciar a captura; `matchId` flui até `CaptureSessionsService.create` (que já aceitava o campo desde a Fase 1, só faltava um cliente que o preenchesse). Nenhuma rota nova no backend. Ver CHANGELOG 0.38.0
+
+### Extensão de navegador — caminho alternativo ao apps/desktop (pós Fase 7)
+
+Novo workspace `apps/extension` (Chrome, Manifest V3), resolvendo estruturalmente a limitação de
+foco descoberta na validação manual do `apps/desktop` (Remote Play pausa quando a janela do
+Electron ganha foco) — uma extensão roda dentro da própria aba do Remote Play e nunca precisa
+roubar o foco dela para pausar/encerrar a captura. Plano completo em
+[`docs/REMOTE_PLAY_CAPTURE.md`](REMOTE_PLAY_CAPTURE.md). Reaproveita 100% do backend já existente
+(`CaptureSessionsModule`) — nenhuma rota nova.
+
+- [x] `src/background/` (service worker): `BackendClient` (login, createCaptureSession,
+  transitionSession, uploadFrame) contra os mesmos endpoints já usados pelo `apps/desktop`;
+  `SessionStore` em `chrome.storage.session` (só memória, nunca disco — mesmo princípio de
+  privacidade do desktop, necessário porque o service worker do MV3 é reciclado a qualquer momento)
+- [x] `src/content/` injetado em `xbox.com/*/play/*`: `video-picker.ts` — heurística de qual
+  `<video>` da página é o player do Remote Play (maior área entre os que estão tocando), sem
+  depender de seletor CSS específico do Xbox — amostra frames via `<canvas>` e envia ao background
+- [x] `src/popup/` — UI sem framework (HTML/DOM puro): login, tela de consentimento (mesmo texto
+  de transparência do desktop: só pixels da aba, sem engenharia reversa), controles start/pause/stop
+- [x] `elapsedMs` desde o início da sessão (não `Date.now()`) já enviado desde a primeira versão —
+  mesma correção que o `apps/desktop` só descobriu na validação manual (CHANGELOG 0.35.0)
+- [x] 5 testes (`video-picker.spec.ts`, única lógica pura testável sem um navegador real); build
+  (`tsc` + `esbuild`) validado; scripts `build:extension`/`test:extension` no `package.json` raiz
+- [x] **Validado em navegador real nesta rodada** — login (com mostrar/ocultar senha e salvar pelo
+  gerenciador do Chrome, ver CHANGELOG 0.38.1), `renderSelectMatch` vinculando a sessão a uma
+  `Match`, e captura ao vivo contra uma sessão real de Xbox Remote Play: 162 frames de uma sessão
+  de teste chegaram no banco, 1/s, com `matchId` preenchido — mas todos corrompidos (bug de
+  transporte do frame via `chrome.runtime.sendMessage`, corrigido no CHANGELOG 0.38.3; ainda falta
+  revalidar com o fix aplicado)
 
 ## Próxima tarefa
 
-Construir uma **extensão de navegador** como caminho alternativo (e provavelmente definitivo) ao
-`apps/desktop` para o fluxo de Remote Play via browser. Motivação, além de eficiência: a limitação
-de foco descoberta na validação manual (Remote Play pausa quando a janela do Electron ganha foco)
-não existe numa extensão, porque ela roda dentro da própria aba — nunca precisa roubar o foco da
-página do Remote Play. Trade-off já discutido: a extensão cobriria só o fluxo via navegador
-(`xbox.com/play`), não o app nativo Xbox no Windows, que o `apps/desktop` também suporta.
+**Revalidar a captura da extensão após o fix de transporte de frame (CHANGELOG 0.38.3)** — a
+validação de ponta a ponta desta rodada (login → escolha de partida → captura ao vivo) achou um bug
+crítico, não falta de calibração como eu tinha diagnosticado a princípio: `chrome.runtime.sendMessage`
+não transferia o `ArrayBuffer` do frame de forma confiável entre o content script e o service worker,
+então todo frame chegava na API como 15 bytes de texto `"[object Object]"`, nunca uma imagem de
+verdade — por isso `GameStateDetectorService` falhava em 100% das amostras. Corrigido codificando o
+frame em base64 antes de mandar a mensagem. Falta repetir a validação manual (extensão recarregada +
+aba do Xbox nova) para confirmar que os frames agora chegam como PNG válido e que
+`GameStateDetectorService` consegue de fato classificar `menu`/`match_running`. **Só depois disso**
+faz sentido calibrar os limiares (`STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`, `SPIKE_THRESHOLD` e os 2 de
+confiança) com dados reais — calibrar em cima de frames corrompidos não serviria de nada. Depois
+disso, o roadmap segue com: geração automática de `VideoSegment` a partir de eventos detectados, e
+as Fases 3–4 (voz, tracking, modelo próprio) — ver `docs/REMOTE_PLAY_CAPTURE.md`.
 
 ---
 
