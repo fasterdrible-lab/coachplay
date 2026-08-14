@@ -50,6 +50,14 @@ async function handleCaptureStart(matchId?: string) {
     throw new Error('Abra a aba do Xbox Remote Play (xbox.com/.../play/...) e deixe-a ativa antes de iniciar.');
   }
 
+  // Injeção sob demanda, não só a declarativa do manifest.json: o xbox.com é uma SPA e a URL de
+  // /play/... costuma ser alcançada por navegação client-side, sem um carregamento de documento
+  // novo — momento em que o Chrome nunca reavalia content_scripts (achado real ao validar contra
+  // uma sessão de verdade: "Could not establish connection. Receiving end does not exist." ao
+  // tentar falar com um content script que nunca foi injetado). Idempotente — o próprio
+  // content/index.ts se protege contra rodar duas vezes na mesma página.
+  await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+
   const session = await backend.createCaptureSession(accessToken, {
     matchId,
     sourceType: 'window',
