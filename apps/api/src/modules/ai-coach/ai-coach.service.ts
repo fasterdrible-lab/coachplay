@@ -5,6 +5,13 @@ import { AIAnalysis, AIAnalysisStatus, CoachFeedback, DetectedError, FeedbackCha
 import { PrismaService } from '../../shared/database/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 import { getTipsPerMinuteCap } from './feedback-level.util';
+import { DecisionEvaluation } from '../tactical-engine/decision-evaluation.type';
+import { PrincipleAdherence, splitPrincipleAdherence } from '../tactical-engine/principle-adherence.type';
+import { TacticalDecisionFeedback } from '../tactical-engine/tactical-decision-feedback.type';
+import { getStrategicPrinciple } from '../tactical-engine/strategic-principle.type';
+import { FeedbackPriority, LastFeedbackDelivery } from '../tactical-engine/feedback-priority.type';
+import { computeFeedbackPriority, shouldDeliverLiveFeedback } from '../tactical-engine/feedback-priority.evaluator';
+import { TacticalEngineFeatureFlagService } from '../tactical-engine/tactical-engine-feature-flag.service';
 
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 const OPENAI_MODEL = 'gpt-4o';
@@ -12,6 +19,7 @@ const DEEPSEEK_MODEL = 'deepseek-chat';
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 const PROMPT_VERSION = '1.0.0';
 const EVENT_FEEDBACK_MAX_TOKENS = 120;
+const DECISION_EXPLANATION_MAX_TOKENS = 200;
 const TIPS_PER_MINUTE_WINDOW_MS = 60_000;
 
 // Preços por token (USD) — claude-sonnet-4-6: $3/M input, $15/M output
@@ -38,6 +46,7 @@ export class AiCoachService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
+    private readonly tacticalEngineFlag: TacticalEngineFeatureFlagService,
   ) {}
 
   async analyzeMatch(matchId: string): Promise<AIAnalysis> {
@@ -175,6 +184,128 @@ export class AiCoachService {
         deliveredAt: new Date(),
       },
     });
+  }
+
+  // Fase 5 (Tactical Engine) — Tarefa 23: único ponto do sistema que produz texto a partir de
+  // uma DecisionEvaluation (Fase 3) + PrincipleAdherence[] (Fase 4). O tactical-engine nunca
+  // chama IA diretamente (ver docs/tactical-engine-domain.md, seção 5) — só entrega dado
+  // estruturado; a IA aqui SÓ explica em texto, nunca recalcula score/classificação/princípios
+  // (esses já vêm prontos do motor, ver docs/tactical-engine-current-state.md, risco 4).
+  // Best-effort como generateEventFeedback: retorna `null` em vez de lançar quando todos os
+  // provedores falham — uma explicação perdida não pode derrubar quem a chama. Gateado pela
+  // feature flag do motor (Fase 7, Tarefa 35) — desabilitado por padrão (ver
+  // TacticalEngineFeatureFlagService).
+  async explainDecision(
+    evaluation: DecisionEvaluation,
+    principles: PrincipleAdherence[],
+  ): Promise<TacticalDecisionFeedback | null> {
+    if (!this.tacticalEngineFlag.isEnabled()) {
+      this.logger.debug('Explicação de decisão: Tactical Engine desabilitado (TACTICAL_ENGINE_ENABLED)');
+      return null;
+    }
+
+    const prompt = this.buildDecisionExplanationPrompt(evaluation, principles);
+    const providers: Array<() => Promise<AiResult>> = [
+      () => this.callClaude(prompt, DECISION_EXPLANATION_MAX_TOKENS),
+      () => this.callGpt4o(prompt, DECISION_EXPLANATION_MAX_TOKENS),
+      () => this.callDeepSeek(prompt, DECISION_EXPLANATION_MAX_TOKENS),
+    ];
+
+    let result: AiResult | undefined;
+    for (const call of providers) {
+      try {
+        result = await call();
+        break;
+      } catch (err) {
+        this.logger.warn(`Explicação de decisão: provedor falhou (${(err as Error).message})`);
+      }
+    }
+
+    if (!result || !result.summary.trim()) {
+      this.logger.warn('Explicação de decisão: todos os provedores de IA falharam');
+      return null;
+    }
+
+    const { followed, violated } = splitPrincipleAdherence(principles);
+
+    return {
+      explanation: result.summary.trim(),
+      classification: evaluation.classification,
+      scoreDifference: evaluation.scoreDifference,
+      principlesFollowed: followed,
+      principlesViolated: violated,
+    };
+  }
+
+  private buildDecisionExplanationPrompt(evaluation: DecisionEvaluation, principles: PrincipleAdherence[]): string {
+    const { followed, violated } = splitPrincipleAdherence(principles);
+    const describe = (ids: PrincipleAdherence['principleId'][]) =>
+      ids.length === 0 ? 'nenhum identificado' : ids.map((id) => getStrategicPrinciple(id).name).join(', ');
+
+    const alternativeText = evaluation.bestAlternative
+      ? `A melhor alternativa disponível era "${evaluation.bestAlternative.type}" (diferença de ${Math.abs(
+          evaluation.scoreDifference,
+        ).toFixed(0)} pontos em relação à ação escolhida).`
+      : 'Não havia nenhuma alternativa relevante disponível além da ação escolhida.';
+
+    return `Você é um coach tático de EA FC (FIFA), em português. Um motor determinístico (sem IA) já
+avaliou UMA decisão do jogador — os dados abaixo já estão calculados, não invente nem recalcule
+nenhum deles.
+
+Ação escolhida: ${evaluation.actualAction.type} (nota ${evaluation.actualScore.total.toFixed(0)}/100, classificação ${evaluation.classification}).
+${alternativeText}
+Princípios seguidos: ${describe(followed)}.
+Princípios violados: ${describe(violated)}.
+
+Explique em UMA ou DUAS frases curtas, em português, por que essa nota faz sentido e o que o
+jogador deveria considerar da próxima vez. Baseie-se só nos dados acima.`;
+  }
+
+  // Fase 6 (Tactical Engine) — Tarefa 28: feedback estratégico AO VIVO, com prioridade e
+  // cooldown (ver feedback-priority.evaluator.ts). Diferente de generateEventFeedback (Fase 2 —
+  // heurística de pico de movimento, sem julgamento tático), esta entrega parte de uma
+  // DecisionEvaluation (Fase 3) + PrincipleAdherence[] (Fase 4) já resolvidas — reusa
+  // explainDecision (Tarefa 23) para o texto, nunca duplica a chamada de IA. `lastDelivery` é
+  // responsabilidade de quem chama manter entre invocações (ver LastFeedbackDelivery) — este
+  // método não tem estado próprio de sessão, mesmo princípio de isolamento do resto do motor
+  // (docs/tactical-engine-current-state.md). Ainda sem nenhum worker/pipeline real que o
+  // invoque: falta uma fonte real de TacticalGameState (mesmo bloqueio de todas as fases
+  // anteriores) — só a Fase 2 de capture-sessions (motion/estado de jogo) roda contra dados
+  // reais hoje.
+  async deliverLiveTacticalFeedback(
+    evaluation: DecisionEvaluation,
+    principles: PrincipleAdherence[],
+    matchId: string,
+    feedbackLevel: string | null,
+    lastDelivery: LastFeedbackDelivery | null,
+  ): Promise<{ feedback: CoachFeedback; priority: FeedbackPriority } | null> {
+    if (!this.tacticalEngineFlag.isEnabled()) {
+      this.logger.debug('Feedback tático ao vivo: Tactical Engine desabilitado (TACTICAL_ENGINE_ENABLED)');
+      return null;
+    }
+
+    if (getTipsPerMinuteCap(feedbackLevel) === 0) return null; // silencioso — respeita a preferência acima de tudo
+
+    const priority = computeFeedbackPriority(evaluation.classification);
+    if (!shouldDeliverLiveFeedback(priority, lastDelivery, Date.now())) {
+      this.logger.debug(`Feedback tático ao vivo: bloqueado pelo cooldown (prioridade ${priority})`);
+      return null;
+    }
+
+    const tacticalFeedback = await this.explainDecision(evaluation, principles);
+    if (!tacticalFeedback) return null; // best-effort — explainDecision já loga o motivo da falha
+
+    const feedback = await this.prisma.coachFeedback.create({
+      data: {
+        matchId,
+        feedbackType: 'tactical_feedback',
+        message: tacticalFeedback.explanation,
+        deliveredChannel: FeedbackChannel.text,
+        deliveredAt: new Date(),
+      },
+    });
+
+    return { feedback, priority };
   }
 
   private buildEventPrompt(event: GameEvent): string {

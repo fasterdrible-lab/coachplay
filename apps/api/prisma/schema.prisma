@@ -112,6 +112,25 @@ enum FeedbackChannel {
   report
 }
 
+enum TacticalPossession {
+  user
+  opponent
+  contested
+  unknown
+}
+
+enum TacticalTeam {
+  user
+  opponent
+}
+
+// Ver docs/tactical-engine-domain.md (TacticalPattern) e TASKS.md (Fase 4, Tarefa 21).
+enum TacticalPatternSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model User {
   id           String     @id @default(cuid())
   name         String
@@ -133,6 +152,8 @@ model User {
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
   captureSessions     CaptureSession[]
+  tacticalPatterns    TacticalPattern[]
+  tacticalProfile     TacticalProfile?
 
   @@index([email])
   @@index([status])
@@ -211,6 +232,7 @@ model Match {
   captureSessions CaptureSession[]
   videoSegments   VideoSegment[]
   coachFeedbacks  CoachFeedback[]
+  tacticalSnapshots TacticalSnapshot[]
 
   @@index([userId])
   @@index([status])
@@ -474,4 +496,88 @@ model CoachFeedback {
 
   @@index([matchId])
   @@map("coach_feedbacks")
+}
+
+// Instante estruturado da partida consumido pelo Tactical Engine (ver
+// docs/tactical-engine-domain.md — TacticalGameState). Hoje alimentado só por fixtures de
+// teste: não existe, em nenhum lugar do projeto, uma fonte real de posição de jogadores/bola
+// (ver docs/tactical-engine-current-state.md, seção 2). @@index([createdAt]) existe para
+// suportar uma futura rotina de expurgo/agregação — nenhuma política de retenção implementada
+// ainda (risco documentado na auditoria).
+model TacticalSnapshot {
+  id                 String             @id @default(cuid())
+  matchId            String             @map("match_id")
+  timestampMs        Int                @map("timestamp_ms")
+  possession         TacticalPossession @default(unknown)
+  ballX              Float?             @map("ball_x")
+  ballY              Float?             @map("ball_y")
+  controlledPlayerId String?            @map("controlled_player_id")
+  confidence         Float
+  createdAt          DateTime           @default(now()) @map("created_at")
+
+  match   Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  players TacticalPlayer[]
+
+  @@index([matchId])
+  @@index([matchId, timestampMs])
+  @@index([createdAt])
+  @@map("tactical_snapshots")
+}
+
+model TacticalPlayer {
+  id         String       @id @default(cuid())
+  snapshotId String       @map("snapshot_id")
+  trackingId String       @map("tracking_id")
+  team       TacticalTeam
+  x          Float
+  y          Float
+  role       String?
+  confidence Float
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  snapshot TacticalSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@map("tactical_players")
+}
+
+// Ver docs/tactical-engine-domain.md (TacticalPattern) e TASKS.md (Fase 4, Tarefa 21) —
+// recorrência de um princípio (seguido ou negligenciado) através de MÚLTIPLAS partidas do
+// mesmo usuário, produzida por tactical-pattern.detector.ts e persistida/atualizada
+// (upsert) por tactical-patterns.service.ts a cada nova partida analisada pelo motor.
+model TacticalPattern {
+  id              String                  @id @default(cuid())
+  userId          String                  @map("user_id")
+  pattern         String
+  frequency       Int
+  confidence      Float
+  severity        TacticalPatternSeverity
+  firstDetectedAt DateTime                @map("first_detected_at")
+  lastDetectedAt  DateTime                @map("last_detected_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+  createdAt       DateTime                @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pattern])
+  @@index([userId])
+  @@map("tactical_patterns")
+}
+
+// Ver docs/tactical-engine-domain.md e TASKS.md (Fase 4, Tarefa 22) — perfil estratégico
+// evolutivo do usuário, agregado a partir dos TacticalPattern já persistidos (não recalcula
+// nada geométrico por si só — camada fina de agregação, mesmo espírito de
+// tactical-snapshots.service.ts). Uma linha por usuário (chave primária = userId), sempre
+// sobrescrita (upsert) na última agregação — não guarda histórico de perfis anteriores.
+model TacticalProfile {
+  userId               String   @id @map("user_id")
+  dominantPrinciples   Json     @map("dominant_principles")
+  neglectedPrinciples  Json     @map("neglected_principles")
+  sampleSize           Int      @map("sample_size")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("tactical_profiles")
 }

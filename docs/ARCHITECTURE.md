@@ -18,6 +18,7 @@ Coach Play é um **monolito modular** com Clean Architecture e Domain-Driven Des
         └──────────────────────────────────────────►   ├── Game Analysis Module  ──► [FFmpeg / Frames]
                                                         ├── AI Coach Module       ──► [Claude / GPT-4o / DeepSeek]
                                                         ├── Capture Sessions Module ──► ver docs/REMOTE_PLAY_CAPTURE.md
+                                                        ├── Tactical Engine Module  ──► ver seção própria abaixo
                                                         ├── Reports Module
                                                         ├── Plans Module
                                                         ├── Audit Logs Module (leitura + escrita — @Global)
@@ -84,10 +85,14 @@ users ──────── user_preferences (1:1)
            │
            ├─── ai_analyses
            │
-           └─── match_reports
+           ├─── match_reports
+           │
+           └─── tactical_snapshots ── tactical_players
 
 users ─── usage_logs
 users ─── audit_logs
+users ─── tactical_patterns (Tactical Engine, Fase 4 — recorrência entre partidas)
+users ─── tactical_profiles (Tactical Engine, Fase 4 — 1:1, perfil estratégico evolutivo)
 ```
 
 ---
@@ -244,6 +249,116 @@ de IA e voz.
 
 ---
 
+## Módulo Tactical Engine
+
+Plano completo (domínio, riscos, roadmap por fases) em
+[`docs/tactical-engine-domain.md`](tactical-engine-domain.md) e
+[`docs/tactical-engine-current-state.md`](tactical-engine-current-state.md). Resumo:
+
+```
+apps/api/src/modules/tactical-engine/    (estrutura flat — mesmo padrão dos demais módulos,
+                                           não a estrutura em camadas descrita mais acima)
+  pitch-coordinate.type.ts                 PitchCoordinate normalizada (x/y em [0,1])
+  pitch-zone.ts                            getPitchZone() — 15 zonas (3 terços × 5 corredores)
+  tactical-game-state.type.ts              TacticalGameState / VirtualPlayer
+  tactical-state-provider.interface.ts     única costura para uma futura fonte real de dados
+  tactical-snapshots.service.ts            persistência via Prisma (TacticalSnapshot/TacticalPlayer)
+  passing-lanes/pressure/space/numerical-advantage/defensive-balance.evaluator.ts
+                                            avaliadores geométricos (Fase 2)
+  action-generator.ts, decision-score.*, decision-classification.ts, decision.evaluator.ts,
+  decision-tree.evaluator.ts, tactical-sequence.detector.ts
+                                            motor de decisões (Fase 3) — ação real × alternativas
+  strategic-principle.type.ts              catálogo de princípios (xadrez → futebol, Fase 4)
+  initiative.evaluator.ts, overload-switch.evaluator.ts
+                                            iniciativa e sobrecarga/troca de lado (Fase 4)
+  principle-adherence.evaluator.ts         julga aderência de 1 decisão aos 8 princípios do catálogo
+  tactical-pattern.detector.ts             recorrência de princípios entre PARTIDAS (Fase 4)
+  strategic-profile.builder.ts             agrega TacticalPattern em StrategicProfile (Fase 4)
+  tactical-patterns.service.ts / tactical-profiles.service.ts
+                                            persistência via Prisma (TacticalPattern/TacticalProfile)
+  evaluated-decision-record.type.ts        entrada comum dos 3 builders de saída da Fase 5
+  tactical-match-report.builder.ts         relatório pós-jogo (Fase 5) — reusa detectTacticalSequences
+  tactical-timeline.builder.ts             timeline de decisões (Fase 5)
+  decision-detail.builder.ts               objeto canônico de 1 decisão (Fase 5)
+  tactical-decision-feedback.type.ts       "novo formato de feedback" (Fase 5) — texto + campos
+                                            estruturados; produzido por AiCoachService.explainDecision
+  feedback-priority.evaluator.ts           prioridade (LOW-CRITICAL) + cooldown de feedback AO VIVO (Fase 6)
+  confidence.evaluator.ts                  sistema de confiança (Fase 7) — agrega sinais, gateia evaluateDecision
+  tactical-engine-feature-flag.service.ts  feature flag TACTICAL_ENGINE_ENABLED (Fase 7, desabilitada por padrão)
+  tactical-fixtures.ts                     dataset de fixtures reutilizável entre specs (Fase 7, só teste)
+  tactical-engine.module.ts
+```
+
+Referência completa da API pública (por fase) em [`docs/tactical-engine-api.md`](tactical-engine-api.md);
+algoritmo de scoring documentado em [`docs/tactical-engine-scoring.md`](tactical-engine-scoring.md).
+
+**Diferente de todo o resto do backend:** o `tactical-engine` não importa `game-analysis` nem
+`capture-sessions` diretamente — consome exclusivamente `TacticalGameState` através de
+`TacticalStateProvider`. Isso não é estilo, é necessidade: hoje não existe nenhum pipeline real
+de visão computacional no projeto (`game-analysis` é sintético; `capture-sessions` só mede diff
+de pixels agregado) — o motor é desenvolvido e testado inteiramente contra fixtures, sem
+acoplamento a nenhuma fonte de dado real que ainda não existe.
+
+**Providers Nest vs. funções puras:** só os quatro serviços de persistência
+(`TacticalSnapshotsService`, `TacticalPatternsService`, `TacticalProfilesService`) são providers
+registrados em `TacticalEngineModule` — todo o resto (avaliadores geométricos, motor de
+decisões, catálogo de princípios, detector de padrões, builder de perfil) é função pura
+importada diretamente pelo arquivo que precisa dela, sem injeção de dependência.
+
+**Fronteira com `ai-coach` (Fases 5–6):** `AiCoachService.explainDecision()`/`deliverLiveTacticalFeedback()`
+(`apps/api/src/modules/ai-coach/ai-coach.service.ts`) são os ÚNICOS pontos do sistema que
+importam tipos/funções do `tactical-engine` (`DecisionEvaluation`, `PrincipleAdherence`,
+`splitPrincipleAdherence`, `getStrategicPrinciple`, `computeFeedbackPriority`,
+`shouldDeliverLiveFeedback`) para montar um prompt e gerar texto — seguem a mesma cascata Claude
+→ GPT-4o → DeepSeek de `analyzeMatch`/`generateEventFeedback`, best-effort (retornam `null` em
+vez de lançar quando todos os provedores falham). A direção da dependência é sempre `ai-coach` →
+`tactical-engine`, nunca o contrário — o motor continua sem chamar `@anthropic-ai/sdk`/`openai`
+diretamente (ver docs/tactical-engine-domain.md, seção 5). A IA só produz o texto de
+`TacticalDecisionFeedback.explanation`; classificação, `scoreDifference`, princípios
+seguidos/violados e a decisão de ENTREGAR ou não ao vivo (prioridade + cooldown) vêm sempre
+prontos do motor, nunca recalculados/decididos pela IA.
+
+Fase 1 (Fundação, concluída): domínio, tipos normalizados de campo, módulo e persistência.
+Fase 2 (concluída): inteligência espacial (linhas de passe, pressão, espaço, superioridade
+numérica, equilíbrio defensivo). Fase 3 (concluída): motor de decisões (`DecisionScore`,
+classificação, árvore de curto horizonte, sequências táticas). Fase 4 (concluída): princípios
+estratégicos — catálogo inspirado em xadrez, iniciativa, overload/switch, julgamento de
+aderência por decisão, padrões recorrentes entre partidas (`TacticalPattern`) e perfil
+estratégico evolutivo (`TacticalProfile`), ambos persistidos por usuário. Fase 5 (concluída):
+Coach — integração com `ai-coach` (`explainDecision`), novo formato de feedback
+(`TacticalDecisionFeedback`), relatório pós-jogo (`TacticalMatchReport`), timeline
+(`TacticalTimelineEntry[]`) e detalhe de decisão (`DecisionDetail`) — todos ainda sem
+controller/endpoint público, montados a partir de `EvaluatedDecisionRecord[]` fornecido pelo
+chamador. Fase 6 (concluída): tempo real — `feedback-priority.evaluator.ts` classifica cada
+`DecisionClassification` numa prioridade (`LOW`-`CRITICAL`) e decide se/quando entregar feedback
+ao vivo dado um cooldown por prioridade (o maior erro nunca fica preso atrás do cooldown de um
+aviso menor); `AiCoachService.deliverLiveTacticalFeedback()` orquestra prioridade + cooldown +
+`explainDecision` + persistência (`CoachFeedback.feedbackType = 'tactical_feedback'`, sem
+migration — valor novo de um campo `String` livre que já existia).
+
+**Fase 7 (concluída) — robustez, fecha o roadmap original de 39 tarefas:**
+`confidence.evaluator.ts` agrega os sinais de confiança que `TacticalGameState`/`VirtualPlayer`
+já carregavam mas nenhum código ainda usava (`gameState.confidence`, `VirtualPlayer.confidence`)
+numa única decisão "confiança suficiente para avaliar" (MENOR sinal, nunca o mais otimista;
+limiar 0.5) — `decision.evaluator.ts` passa a retornar `null` também quando a confiança é
+insuficiente, mesmo com uma candidata válida (fecha o anti-falso-positivo, Tarefa 30, com um
+sinal numérico além da recusa estrutural já existente desde a Fase 3).
+`tactical-engine-feature-flag.service.ts` (`TACTICAL_ENGINE_ENABLED`, via `ConfigService`,
+desabilitada por padrão) gateia os dois pontos de entrada de `AiCoachService`
+(`explainDecision`/`deliverLiveTacticalFeedback`) — nenhuma fase do motor foi validada contra
+dados reais ainda, então habilitar por padrão arriscaria expor comportamento nunca testado fora
+de testes automatizados. `tactical-fixtures.ts` consolida um dataset de cenários nomeados
+(reciclagem segura, contra-ataque 3×2, sobrecarga central, confiança insuficiente, elenco
+completo 11×11) para reduzir duplicação entre specs e sustentar
+`tactical-engine.integration.spec.ts` — o primeiro teste que encadeia várias fases (avaliação →
+princípios → padrões → perfil → relatório/timeline/detalhe) contra dados de verdade, mais uma
+guarda de performance (200 avaliações sobre 22 jogadores em tempo hábil). Nenhum
+worker/pipeline real ainda invoca nada disso — falta uma fonte real de `TacticalGameState`
+(mesmo bloqueio de todas as fases anteriores); só a Fase 2 de `capture-sessions`
+(motion/estado de jogo) roda contra dados reais hoje.
+
+---
+
 ## Identidade visual — NEX-ALS "Dark Luxury UI"
 
 ```
@@ -308,6 +423,7 @@ deploy/backup/backup-postgres.sh      — pg_dump + gzip + rotação, agendável
 | `MAX_VIDEO_SIZE_MB` | Limite de tamanho de upload | Sim |
 | `FRONTEND_URL` | CORS origin permitida | Sim |
 | `NODE_ENV` | `development` ou `production` | Sim |
+| `TACTICAL_ENGINE_ENABLED` | Feature flag do Tactical Engine (Fase 7) — gateia `explainDecision`/`deliverLiveTacticalFeedback` | Não (default `false`) |
 | `DOMAIN` | Domínio do certificado TLS (deploy) | Produção |
 | `LETSENCRYPT_EMAIL` | E-mail para avisos do Let's Encrypt | Produção |
 | `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` | Diretório e retenção do backup do Postgres | Produção |

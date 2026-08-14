@@ -153,7 +153,8 @@ coach-play/
 | `users` | Perfil e preferências do jogador | User, UserProfile, UserPreferences |
 | `matches` | Registrar, listar e gerenciar partidas | Match, MatchVideo, MatchMetadata |
 | `video-capture` | Upload, validação e processamento inicial de vídeo | VideoSource, VideoFile, CaptureSession |
-| `game-analysis` | Detectar eventos e erros no vídeo (frames + FFmpeg) | GameEvent, DetectedError, TacticalPattern |
+| `game-analysis` | Detectar eventos e erros no vídeo (frames + FFmpeg) — hoje sintético, sem visão computacional real (ver `docs/tactical-engine-current-state.md`) | GameEvent, DetectedError |
+| `tactical-engine` | Avaliar decisões táticas a partir de um `TacticalGameState` estruturado — geometria determinística, nunca IA generativa (ver `docs/tactical-engine-domain.md`) | TacticalSnapshot, TacticalPlayer |
 | `ai-coach` | Transformar eventos em feedback textual via IA | AIAnalysis, CoachFeedback, PromptTemplate, AIUsage |
 | `reports` | Gerar e exibir relatórios pós-partida | MatchReport, EvolutionReport, ErrorSummary, SkillScore |
 | `plans` | Controlar planos e limites de análise | Plan, Subscription, UsageLimit |

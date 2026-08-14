@@ -1,8 +1,8 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.38.3
-**Data:** 2026-07-22
-**Fase:** Fase 7 — Produção (concluída, **em produção real em https://coachplayals.com.br**) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fases 1 e 2, validadas manualmente, + extensão de navegador)
+**Versão:** V.0.45.0
+**Data:** 2026-08-14
+**Fase:** Fase 7 — Produção (concluída, **em produção real em https://coachplayals.com.br**) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fases 1 e 2, validadas manualmente, + extensão de navegador) + Tactical Engine (**Fases 1–7 concluídas — motor completo, 39/39 tarefas do plano original, ainda sem fonte real de dados nem endpoint público**)
 
 ---
 
@@ -448,6 +448,240 @@ roubar o foco dela para pausar/encerrar a captura. Plano completo em
   de teste chegaram no banco, 1/s, com `matchId` preenchido — mas todos corrompidos (bug de
   transporte do frame via `chrome.runtime.sendMessage`, corrigido no CHANGELOG 0.38.3; ainda falta
   revalidar com o fix aplicado)
+
+### Tactical Engine — Fase 1: Fundação (novo subdomínio)
+
+Novo subdomínio inspirado em princípios de xadrez (traduzidos para futebol digital), que evolui
+o Coach Play de "detector de erros" para "sistema de inteligência de decisão": comparar a decisão
+tomada com as alternativas disponíveis, não só apontar o erro. Plano completo em
+[`docs/tactical-engine-domain.md`](tactical-engine-domain.md); auditoria pré-implementação em
+[`docs/tactical-engine-current-state.md`](tactical-engine-current-state.md).
+
+- [x] **Tarefa 1 — Auditoria da arquitetura atual** (`docs/tactical-engine-current-state.md`) —
+  achado crítico: não existe, em nenhum lugar do projeto, detecção real de posição de
+  jogadores/bola. `GameAnalysisService.analyzeMatch` (pipeline de upload) é inteiramente
+  sintético; `capture-sessions` só faz diff de pixels agregado, sem semântica espacial. Decisão
+  resultante: o motor é construído e testado contra fixtures, isolado atrás de uma interface
+  (`TacticalStateProvider`) sem implementação real ainda
+- [x] **Tarefa 2 — Domínio estratégico** (`docs/tactical-engine-domain.md`) — linguagem ubíqua,
+  nomenclatura que nunca confunde `User` (conta autenticada) com jogador virtual em campo
+  (`VirtualPlayer`/`ControlledPlayer`/`OpponentPlayer`)
+- [x] **Tarefa 3 — Representação normalizada do campo** — `PitchCoordinate` (x/y em [0,1]),
+  `getPitchZone()` (15 zonas: 3 terços × 5 corredores), `invertPitchSide()`; lança erro explícito
+  para coordenada inválida (nunca corrige silenciosamente)
+- [x] **Tarefa 4 — Módulo `tactical-engine`** — estrutura flat (mesmo padrão dos demais módulos;
+  decisão confirmada com o usuário, não a estrutura em camadas documentada mas nunca usada em
+  `docs/ARCHITECTURE.md`), registrado em `app.module.ts` sem controller/endpoint ainda
+- [x] **Tarefa 5 — `TacticalGameState`/`VirtualPlayer`** — estado estruturado de um instante da
+  partida; `TacticalStateProvider` como única costura para uma futura fonte real de dados
+- [x] **Tarefa 6 — Persistência** — `TacticalSnapshot`/`TacticalPlayer` no Prisma (migration
+  `20260813150732_add_tactical_engine`), índices em `matchId`, `(matchId, timestampMs)` e
+  `createdAt` (preparando futura rotina de expurgo — sem política de retenção implementada ainda)
+- [x] 38 novos testes; suíte completa da API (16 suítes / 109 testes), `tsc --noEmit` e
+  `nest build` validados sem regressão
+- [ ] Lint da API (`npm run lint`) segue quebrado por falta de `.eslintrc*` — pré-existente, não
+  bloqueou esta fase (validação feita via `tsc --noEmit`)
+
+### Tactical Engine — Fase 2: Inteligência espacial
+
+Cinco avaliadores geométricos determinísticos sobre `TacticalGameState` — nenhum usa IA
+generativa. Ainda sem controller/endpoint público.
+
+- [x] **Tarefa 7 — Linhas de passe** (`passing-lanes.evaluator.ts`) — `distance`,
+  `obstructionRisk`, `pressureRisk`, `progressionValue`, `score` 0–100 por linha candidata
+- [x] **Tarefa 8 — Pressão** (`pressure.evaluator.ts`) — `LOW`/`MEDIUM`/`HIGH`/`CRITICAL` a
+  partir de distância e contagem de adversários num raio de 0.15
+- [x] **Tarefa 9 — Espaço livre** (`space.evaluator.ts`) — usa as 15 `PitchZone` como grid;
+  `occupation`/`pressure`/`freeSpace`/`goalProximity` por zona, ordenado por valor estratégico
+- [x] **Tarefa 10 — Superioridade numérica** (`numerical-advantage.evaluator.ts`) — por zona
+  exata ou zona da bola + vizinhança (novo `getNeighboringZones()` em `pitch-zone.ts`)
+- [x] **Tarefa 11 — Segurança defensiva** (`defensive-balance.evaluator.ts`) —
+  `DefensiveSafetyScore` 0–100 a partir de jogadores atrás da bola, cobertura central, dispersão
+  lateral e adversários livres à frente
+- [x] 45 novos testes (83 no módulo, 154 na suíte completa da API); `tsc --noEmit`/`nest build`
+  validados sem regressão
+
+### Tactical Engine — Fase 3: Motor de decisões
+
+Primeira vez que o motor produz uma avaliação completa — ação escolhida × melhores alternativas,
+nota 0–100, classificação — fechando o critério de sucesso do plano original. Ainda 100%
+determinístico, sem controller/endpoint público.
+
+- [x] **Tarefa 12 — Ações candidatas** (`action-generator.ts`) — `PASS`/`SAFE_PASS`/
+  `PROGRESSIVE_PASS`/`RECYCLE`/`SWITCH_SIDE` (a partir das linhas de passe) + `CARRY`/`HOLD`
+- [x] **Tarefa 13 — `DecisionScore`** (`decision-score.config.ts` + `.calculator.ts`) — 6
+  componentes, pesos versionados (`DECISION_SCORE_CONFIG_VERSION`), somando 1.0
+- [x] **Tarefa 14 — Classificação** (`decision-classification.ts`) — `EXCELLENT`→`MAJOR_ERROR`
+- [x] **Tarefa 15 — `DecisionEvaluator`** (`decision.evaluator.ts`) — chamador informa só
+  tipo+alvo da ação real; retorna `null` sem candidata correspondente (regra "sem confiança,
+  sem avaliação")
+- [x] **Tarefa 16 — Árvore de decisão curta** (`decision-tree.evaluator.ts`) — `depth=2`,
+  `topActions=3`, poda simples por construção
+- [x] **Tarefa 17 — Sequências táticas** (`tactical-sequence.detector.ts`) — 5 de 6 padrões
+  (`DEFENSIVE_RECOVERY` só no vocabulário, sem detector — `ActionGenerator` não modela ações do
+  time sem a posse)
+- [x] **Bug real corrigido nesta fase**: fórmula de `pressureManagement` enviesava o motor a
+  sempre preferir `HOLD` mesmo sem pressão nenhuma — corrigido, ver `CHANGELOG.md` 0.41.0
+- [x] 44 novos testes (162 no módulo, 207 na suíte completa da API); `tsc --noEmit`/`nest build`
+  validados sem regressão
+
+### Tactical Engine — Fase 4: Princípios estratégicos
+
+Primeira vez que o motor produz um vocabulário de avaliação qualitativa (não só nota 0–100) —
+oito princípios nomeados, inspirados em xadrez e traduzidos para futebol, julgados por decisão e
+agregados em padrões recorrentes entre partidas. Ainda 100% determinístico, sem IA generativa, e
+sem controller/endpoint público (a integração com `ai-coach` fica para a Fase 5).
+
+- [x] **Tarefa 18 — Catálogo de princípios** (`strategic-principle.type.ts`) — 8 princípios
+  (`CENTRAL_CONTROL`, `PIECE_ACTIVITY`, `KING_SAFETY`, `SPACE_EXPANSION`, `INITIATIVE`,
+  `PROPHYLAXIS`, `OVERLOAD`, `WEAKNESS_EXPLOITATION`), cada um com nome, origem no xadrez e
+  tradução explícita para futebol — dado estático, sem lógica de avaliação
+- [x] **Tarefa 19 — Iniciativa** (`initiative.evaluator.ts`) — combina posse da bola (metade do
+  peso) com domínio territorial (a outra metade — média da altura de campo dos dois times, não a
+  diferença entre elas: uma diferença simples classificaria erroneamente como "neutro" um
+  cenário em que o adversário pressiona colado ao gol do usuário)
+- [x] **Tarefa 20 — Overload/switch** (`overload-switch.evaluator.ts`) — reusa
+  `evaluateNumericalAdvantage` (Fase 2/Tarefa 10) para listar zonas com superioridade numérica
+  clara do usuário (`detectOverloadOpportunities`) e para comparar o lado atual da bola com o
+  lado espelhado do campo (`evaluateSwitchOpportunity`), quantificando o valor de uma troca de
+  lado além do `progressionValue` geométrico já existente
+- [x] **Julgamento por decisão** (`principle-adherence.evaluator.ts`) — conecta as Tarefas
+  18–20 ao motor de decisões da Fase 3: para cada `TacticalAction` já pontuada, julga os 8
+  princípios como `true` (seguiu), `false` (violou) ou `null` (princípio não estava em jogo
+  neste instante — ex.: `PROPHYLAXIS` sem pressão real a neutralizar, `CENTRAL_CONTROL` numa
+  ação `HOLD` sem `targetZone`) — nunca inventa julgamento sem base
+- [x] **Tarefa 21 — Padrões do jogador** (`tactical-pattern.detector.ts` +
+  `tactical-patterns.service.ts`) — agrega julgamentos de aderência não-nulos através de
+  MÚLTIPLAS partidas do mesmo usuário; só aponta um padrão com amostra mínima (3 observações) e
+  consistência real (≥60% de violação → `_NEGLECTED`, ≥85% de aderência → `_STRENGTH`, sempre
+  severidade `LOW`). Persistido via `TacticalPattern` (Prisma, migration
+  `20260814171346_add_tactical_engine_phase4`), upsert por `(userId, pattern)` — uma nova rodada
+  de detecção atualiza o padrão existente sem sobrescrever `firstDetectedAt`
+- [x] **Tarefa 22 — Perfil estratégico** (`strategic-profile.builder.ts` +
+  `tactical-profiles.service.ts`) — agrega os `TacticalPattern` já persistidos em
+  `dominantPrinciples`/`neglectedPrinciples` (ordenados por severidade/confiança) + `sampleSize`;
+  camada fina de leitura, não recalcula geometria. Persistido via `TacticalProfile` (Prisma, uma
+  linha por usuário, sempre sobrescrita na última agregação — sem histórico de perfis
+  anteriores)
+- [x] 49 novos testes (185 no módulo `tactical-engine`, 256 na suíte completa da API); `tsc
+  --noEmit` e `nest build` validados sem regressão
+
+### Tactical Engine — Fase 5: Coach
+
+Primeira vez que o motor produz texto — até aqui (Fases 1–4) tudo era número/enum/estrutura.
+Único novo acoplamento: `ai-coach` passa a importar tipos/funções do `tactical-engine` (nunca o
+contrário — o motor continua sem chamar IA diretamente). Ainda sem controller/endpoint público:
+os três builders de saída (relatório, timeline, detalhe) recebem `EvaluatedDecisionRecord[]` já
+pronto de quem os chamar — isso continua dependendo de uma fonte real de `TacticalGameState` que
+não existe (mesmo bloqueio documentado desde a Tarefa 1/auditoria).
+
+- [x] **Tarefa 23 — Integração com `ai-coach`** (`AiCoachService.explainDecision()`) — novo
+  método que recebe uma `DecisionEvaluation` (Fase 3) já avaliada + suas `PrincipleAdherence[]`
+  (Fase 4) já julgadas, monta um prompt e gera 1-2 frases de explicação via a mesma cascata
+  Claude → GPT-4o → DeepSeek de `analyzeMatch`/`generateEventFeedback`. Best-effort: retorna
+  `null` (não lança) quando todos os provedores falham — mesma regra de `generateEventFeedback`.
+  A IA nunca recalcula nota/classificação/princípios, só explica em texto o que o motor já
+  decidiu (regra do próprio plano, risco 4 da auditoria: "nenhum novo consumo de IA generativa
+  pode calcular score")
+- [x] **Tarefa 24 — Novo formato de feedback** (`TacticalDecisionFeedback`) — diferente do texto
+  solto de `CoachFeedback.message` (Fase 2), este formato sempre carrega, ao lado do texto
+  gerado por IA, os campos estruturados que o sustentam: `classification`, `scoreDifference`,
+  `principlesFollowed`/`principlesViolated` (via novo helper `splitPrincipleAdherence`, reusado
+  também pelos builders de relatório/timeline)
+- [x] **Tarefa 25 — Relatório pós-jogo** (`tactical-match-report.builder.ts`) —
+  `buildTacticalMatchReport(matchId, records)` agrega `EvaluatedDecisionRecord[]` de UMA partida
+  em nota média, contagem por classificação (todas as 6 faixas, mesmo as que não ocorreram),
+  frequência de princípios seguidos/violados e sequências táticas (reusa
+  `detectTacticalSequences` da Fase 3, sem duplicar lógica). `averageDecisionScore` é `null`
+  (nunca `0`) quando não há decisões
+- [x] **Tarefa 26 — Timeline** (`tactical-timeline.builder.ts`) — equivalente estruturado da
+  timeline "Lances da partida" já exibida em `apps/web`, mas alimentada pelo motor: um item por
+  decisão, ordenado por `timestampMs`, com só os princípios violados (não os seguidos — foco em
+  o que precisa de atenção)
+- [x] **Tarefa 27 — Detalhe de decisão** (`decision-detail.builder.ts`) — `DecisionDetail`
+  combina `DecisionEvaluation` + `PrincipleAdherence[]` + `TacticalDecisionFeedback` opcional
+  (ausente quando a explicação em texto ainda não foi gerada ou falhou) — formato canônico
+  pensado para um futuro endpoint de detalhe, que ainda não existe
+- [x] 18 novos testes (274 na suíte completa da API); `tsc --noEmit` e `nest build` validados
+  sem regressão
+
+### Tactical Engine — Fase 6: Tempo real
+
+Última fase de funcionalidade do motor antes da robustez (Fase 7). Mesmo bloqueio de todas as
+fases anteriores: sem fonte real de `TacticalGameState`, não há ainda nenhum worker/pipeline
+real invocando o que foi construído aqui — a Fase 2 de `capture-sessions` (motion/estado de
+jogo) continua sendo a única parte do sistema rodando contra dados reais.
+
+- [x] **Tarefa 28 — Feedback estratégico durante a partida, com prioridade e cooldown**
+  (`feedback-priority.evaluator.ts`) — `computeFeedbackPriority()` mapeia cada
+  `DecisionClassification` (Fase 3) para uma prioridade de interrupção ao vivo (`MAJOR_ERROR` →
+  `CRITICAL`, `ERROR` → `HIGH`, `RISKY`/`EXCELLENT` → `MEDIUM`, `ACCEPTABLE`/`GOOD` → `LOW`, esta
+  última nunca entregue ao vivo — feedback de rotina fica só no relatório pós-jogo da Fase 5).
+  `shouldDeliverLiveFeedback()` aplica cooldown por prioridade (15s/30s/60s), usando sempre o
+  MAIOR cooldown entre a prioridade atual e a da última entrega (uma entrega HIGH recente também
+  segura a próxima MEDIUM) — exceto `CRITICAL`, que só respeita o próprio cooldown, nunca fica
+  preso atrás do cooldown de um aviso menos urgente
+- [x] `AiCoachService.deliverLiveTacticalFeedback()` — orquestra prioridade + cooldown +
+  `explainDecision` (Tarefa 23) + persistência; respeita `feedbackLevel = 'silencioso'`
+  (nenhuma chamada de IA, mesma regra de `generateEventFeedback`) acima de qualquer prioridade;
+  persiste via `CoachFeedback` com `feedbackType: 'tactical_feedback'` (valor novo do campo
+  `String` livre já existente — sem migration); best-effort, retorna `null` quando a IA falha
+- [x] 15 novos testes (289 na suíte completa da API); `tsc --noEmit` e `nest build` validados
+  sem regressão
+
+### Tactical Engine — Fase 7: Robustez (fecha o plano original de 39 tarefas)
+
+Última fase do roadmap original do Tactical Engine (7 fases, 39 tarefas — ver
+`docs/tactical-engine-domain.md`). Fecha o motor como projeto completo e testado contra
+fixtures; **não** fecha o gap estrutural documentado desde a Tarefa 1 (auditoria): continua sem
+nenhuma fonte real de posição de jogadores/bola, então tudo aqui segue isolado atrás de
+fixtures/interfaces, sem nenhum worker real invocando o motor.
+
+- [x] **Tarefas 29/30 — Sistema de confiança + anti-falso-positivo** (`confidence.evaluator.ts`)
+  — `evaluateConfidence()` agrega os sinais de confiança que `TacticalGameState`/`VirtualPlayer`
+  já carregavam desde a Fase 1 mas nenhum código usava (`gameState.confidence`,
+  `VirtualPlayer.confidence`), usando sempre o MENOR sinal disponível (nunca o mais otimista).
+  `decision.evaluator.ts` passa a retornar `null` também quando a confiança agregada é
+  insuficiente (< 0.5), mesmo com uma candidata de ação válida — fecha o anti-falso-positivo com
+  um sinal numérico, além da recusa estrutural (ação não reconhecida) que já existia desde a
+  Fase 3
+- [x] **Tarefa 34 — Dataset de fixtures** (`tactical-fixtures.ts`) — cenários nomeados
+  reutilizáveis (reciclagem segura, contra-ataque 3×2, sobrecarga central, passe central sob
+  pressão, confiança insuficiente, elenco completo 11×11); specs já existentes não foram
+  migradas (evita mexer em suítes já passando), mas o dataset já sustenta o teste de integração
+  abaixo e fica disponível para uso futuro
+- [x] **Tarefas 31/32/33 — Performance + testes de integração**
+  (`tactical-engine.integration.spec.ts`) — primeiro teste que encadeia várias fases de verdade
+  (avaliação de decisão → julgamento de princípios → detecção de padrões entre partidas →
+  perfil estratégico → relatório/timeline/detalhe), em vez de testar cada peça isolada; mais uma
+  guarda de performance (200 decisões avaliadas sobre um elenco de 22 jogadores em menos de 3s —
+  não é benchmark de precisão, é guarda contra regressão grave tipo um `O(n²)` introduzido por
+  engano)
+- [x] **Tarefa 35 — Feature flag** (`TacticalEngineFeatureFlagService`, `TACTICAL_ENGINE_ENABLED`
+  via `ConfigService`) — desabilitada por padrão (nenhuma fase foi validada contra dados reais
+  ainda); gateia os dois pontos de entrada de `AiCoachService` (`explainDecision`,
+  `deliverLiveTacticalFeedback`)
+- [x] **Tarefa 36 — Telemetria** — logging estruturado (`Logger.debug`) nos pontos de decisão de
+  `AiCoachService`: flag desabilitada, cooldown bloqueando entrega ao vivo (com a prioridade
+  envolvida) — reusa o `Logger` que o resto do arquivo já usa, sem lib nova
+- [x] **Tarefas 37/38 — Documentação** — `docs/tactical-engine-api.md` (referência da API
+  TypeScript pública, por fase — não há endpoint HTTP ainda) e `docs/tactical-engine-scoring.md`
+  (algoritmo de scoring completo: 6 componentes, pesos, classificação, limitações conhecidas,
+  sistema de confiança) — este último era referenciado em comentários desde a Fase 3
+  (`decision-score.type.ts`) mas nunca tinha sido escrito
+- [x] **Tarefa 39 — `TacticalStateProvider`** — já implementada desde a Fase 1
+  (`tactical-state-provider.interface.ts`); confirmada aqui sem mudança de código, continua sem
+  implementação real
+- [x] 30 novos testes (319 na suíte completa da API); `tsc --noEmit` e `nest build` validados
+  sem regressão
+
+**Tactical Engine: roadmap original completo (Fases 1–7, 39/39 tarefas).** Continua sem
+controller/endpoint HTTP público e sem nenhuma fonte real de `TacticalGameState` — esse gap é
+estrutural (falta um pipeline de visão computacional que não existe no projeto, achado desde a
+Tarefa 1) e não faz parte do plano original de 39 tarefas. Qualquer próximo passo (endpoint
+público, integração real com `game-analysis`/`capture-sessions`, pipeline de visão
+computacional) é uma decisão de produto nova, não uma fase já planejada — a discutir com o
+usuário quando/se fizer sentido priorizar.
 
 ## Próxima tarefa
 

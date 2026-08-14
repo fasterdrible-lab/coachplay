@@ -170,3 +170,62 @@
   - Configurar SSL (Let's Encrypt)
   - Configurar backup automático do PostgreSQL
   - Deploy com docker-compose em produção
+
+---
+
+## Fase 8 — Tactical Engine (novo subdomínio, pós Fase 7, concluída — Fases 1–7/39 tarefas)
+
+Plano completo, domínio e roadmap por fases em [`docs/tactical-engine-domain.md`](tactical-engine-domain.md);
+auditoria pré-implementação em [`docs/tactical-engine-current-state.md`](tactical-engine-current-state.md);
+algoritmo de scoring em [`docs/tactical-engine-scoring.md`](tactical-engine-scoring.md); referência
+de API em [`docs/tactical-engine-api.md`](tactical-engine-api.md). Motor completo e testado contra
+fixtures — segue sem nenhuma fonte real de dados (`TacticalStateProvider` sem implementação real,
+feature flag desabilitada por padrão) e sem endpoint HTTP público.
+
+### Fase 1 — Fundação (concluída)
+- [x] **Tarefa 1** — Auditoria da arquitetura atual
+- [x] **Tarefa 2** — Domínio estratégico / linguagem ubíqua
+- [x] **Tarefa 3** — Representação normalizada do campo (`PitchCoordinate`, `getPitchZone`)
+- [x] **Tarefa 4** — Módulo `tactical-engine` (estrutura flat)
+- [x] **Tarefa 5** — `TacticalGameState`/`VirtualPlayer`
+- [x] **Tarefa 6** — Persistência Prisma (`TacticalSnapshot`/`TacticalPlayer`)
+
+### Fase 2 — Inteligência espacial (concluída)
+- [x] **Tarefa 7** — Linhas de passe (`PassingLane`)
+- [x] **Tarefa 8** — Pressão (`PressureEvaluator`)
+- [x] **Tarefa 9** — Espaço livre (`SpaceEvaluator`)
+- [x] **Tarefa 10** — Superioridade numérica
+- [x] **Tarefa 11** — Segurança defensiva (`DefensiveBalanceEvaluator`)
+
+### Fase 3 — Motor de decisões (concluída)
+- [x] **Tarefas 12–17** — Ações candidatas, `DecisionScore`, classificação, `DecisionEvaluator`,
+  árvore de decisão de curto horizonte, sequências táticas
+
+### Fase 4 — Princípios estratégicos (concluída)
+- [x] **Tarefa 18** — Catálogo de princípios (inspirado em xadrez, traduzido para futebol)
+- [x] **Tarefa 19** — Iniciativa
+- [x] **Tarefa 20** — Overload/switch
+- [x] **Tarefa 21** — Padrões do jogador (entre partidas)
+- [x] **Tarefa 22** — Perfil estratégico
+
+### Fase 5 — Coach (concluída)
+- [x] **Tarefa 23** — Integração com `ai-coach` (`AiCoachService.explainDecision`)
+- [x] **Tarefa 24** — Novo formato de feedback (`TacticalDecisionFeedback`)
+- [x] **Tarefa 25** — Relatório pós-jogo (`TacticalMatchReport`)
+- [x] **Tarefa 26** — Timeline (`TacticalTimelineEntry[]`)
+- [x] **Tarefa 27** — Detalhe de decisões (`DecisionDetail`)
+
+### Fase 6 — Tempo real (concluída)
+- [x] **Tarefa 28** — Feedback estratégico durante a partida (com prioridade e cooldown)
+
+### Fase 7 — Robustez (concluída)
+- [x] **Tarefa 29** — Sistema de confiança (`confidence.evaluator.ts`)
+- [x] **Tarefa 30** — Anti-falso-positivo (confiança insuficiente → `evaluateDecision()` retorna `null`)
+- [x] **Tarefa 31** — Performance (teste de guarda em `tactical-engine.integration.spec.ts`)
+- [x] **Tarefas 32/33** — Testes unitários/integração (`tactical-engine.integration.spec.ts`)
+- [x] **Tarefa 34** — Dataset de fixtures (`tactical-fixtures.ts`)
+- [x] **Tarefa 35** — Feature flag (`TACTICAL_ENGINE_ENABLED`, `TacticalEngineFeatureFlagService`)
+- [x] **Tarefa 36** — Telemetria (logging estruturado em `AiCoachService`)
+- [x] **Tarefa 37** — Documentação de API (`docs/tactical-engine-api.md`)
+- [x] **Tarefa 38** — Documentação do algoritmo de scoring (`docs/tactical-engine-scoring.md`)
+- [x] **Tarefa 39** — Interface `TacticalStateProvider` (já adiantada na Fase 1, confirmada aqui)
