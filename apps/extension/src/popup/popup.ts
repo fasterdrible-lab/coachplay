@@ -34,15 +34,20 @@ const STATUS_LABELS: Record<CaptureSessionSnapshot['status'], string> = {
 async function render(): Promise<void> {
   root.innerHTML = '';
 
-  let user: AuthenticatedUser | null;
+  let user: AuthenticatedUser | null = null;
+  let expiredReason: string | null = null;
   try {
-    user = await send<AuthenticatedUser | null>(MESSAGE_TYPES.AUTH_STATUS);
+    const status = await send<{ user: AuthenticatedUser | null; expiredReason: string | null }>(
+      MESSAGE_TYPES.AUTH_STATUS,
+    );
+    user = status.user;
+    expiredReason = status.expiredReason;
   } catch {
     user = null;
   }
 
   if (!user) {
-    renderLogin();
+    renderLogin(expiredReason);
     return;
   }
 
@@ -114,12 +119,12 @@ function renderSelectMatch(user: AuthenticatedUser): void {
     });
 }
 
-function renderLogin(): void {
+function renderLogin(expiredReason: string | null = null): void {
   const wrapper = document.createElement('div');
   wrapper.innerHTML = `
     <h1>Entrar</h1>
     <p>Use a mesma conta do Coach Play.</p>
-    <div id="error" class="error"></div>
+    <div id="error" class="error">${expiredReason ?? ''}</div>
     <form id="login-form">
       <label>E-mail
         <input id="email" name="username" type="email" autocomplete="username" required />

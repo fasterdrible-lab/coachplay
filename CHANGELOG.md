@@ -1,5 +1,51 @@
 # Changelog — Coach Play
 
+## [0.46.0] — 2026-08-14
+
+### Fixed
+Primeira validação de ponta a ponta da extensão contra a API de **produção** (todas as
+validações anteriores da extensão foram feitas contra `localhost` — ver CHANGELOG 0.38.3, notas).
+Achados:
+
+- **Crítico — extensão nunca conseguia falar com a API de produção**: `BASE_URL` em
+  `apps/extension/src/background/backend-client.ts` estava fixo em `http://localhost:3001/api/v1`
+  (endereço de dev) e o `manifest.json` nem tinha `host_permissions` para o domínio de produção —
+  todo login retornava "Failed to fetch" (nem chegava a sair da máquina do usuário). Corrigido:
+  `BASE_URL` aponta para `https://coachplayals.com.br/api/v1` por padrão (localhost mantido no
+  `host_permissions` para quem quiser testar contra API local no futuro — ver TODO já existente
+  sobre tornar isso configurável via options page)
+- **Crítico — sessão de captura silenciosamente parava de enviar frames após 15 minutos**: o
+  access token do Coach Play expira em 15min (`JWT_ACCESS_EXPIRES_IN`) e a extensão nunca tinha
+  lógica de renovação — toda chamada autenticada após a expiração falhava com HTTP 401,
+  `handleContentFrame` só logava o erro no console do service worker e continuava tentando pra
+  sempre, sem nenhum aviso visível pro usuário (achado ao validar: 147 falhas de 401 em sequência,
+  zero frames persistidos). **Renovação silenciosa não é viável**: o cookie `refresh_token` é
+  `SameSite=Strict`, nunca enviado por um `fetch` originado de `chrome-extension://` mesmo com
+  `credentials: 'include'` — mesma limitação vale para `apps/desktop` (também nunca implementou
+  refresh). Corrigido com uma saída segura em vez de silêncio: novo `SessionExpiredError`
+  (`backend-client.ts`) lançado por qualquer chamada autenticada que volte 401; ao ser detectado —
+  seja durante upload de frame (`handleContentFrame`) ou em qualquer ação interativa do popup —, a
+  extensão para a amostragem no content script, limpa a sessão local e volta pra tela de login com
+  a mensagem "Sua sessão expirou (o login dura 15 minutos) — entre novamente para continuar."
+  (`session-store.ts`/`setAuthExpired`, novo `expiredReason` no retorno de `AUTH_STATUS`)
+- Build (`tsc` + `esbuild`) e as 8 suítes existentes de `apps/extension` validados sem regressão;
+  nenhum teste novo (mudança é toda de integração/orquestração já coberta indiretamente, mesmo
+  padrão de mudanças anteriores só de UI/orquestração na extensão)
+
+### Notes
+- Ainda falta uma solução de verdade para sessões de captura longas (uma partida real dura bem
+  mais que 15min) — hoje o usuário precisa logar de novo manualmente se a sessão expirar no meio
+  da captura. Opções futuras: token de acesso com vida mais longa só para clientes de
+  captura (desktop/extensão), ou um fluxo de refresh que não dependa de cookie `SameSite=Strict`
+  (ex.: refresh token retornado no corpo da resposta para esses clientes, guardado em memória do
+  mesmo jeito que o access token já é hoje) — mudança de modelo de autenticação, não deve ser
+  feita sem alinhar com o usuário antes
+- Duas sessões de captura órfãs (`status: running`, criadas nesta validação, nunca chegaram a
+  receber frame nenhum) ficaram no banco de produção — não foram limpas automaticamente porque a
+  chamada de `stop` também exigiria um token válido; sem impacto funcional (não bloqueiam sessões
+  novas), mas aparecerão como "em andamento" para sempre se alguém consultar via `GET
+  /capture-sessions/:id/status`
+
 ## [0.45.0] — 2026-08-14
 
 ### Added

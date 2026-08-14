@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Captura a partida do Xbox Remote Play direto na aba (sem app separado) para análise no Coach Play.",
   "permissions": ["storage"],
-  "host_permissions": ["https://www.xbox.com/*", "http://localhost:3001/*"],
+  "host_permissions": ["https://www.xbox.com/*", "https://coachplayals.com.br/*", "http://localhost:3001/*"],
   "background": {
     "service_worker": "background.js"
   },

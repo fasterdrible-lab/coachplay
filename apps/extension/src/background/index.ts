@@ -1,6 +1,6 @@
 import { MESSAGE_TYPES, CaptureSessionSnapshot, StartSamplingPayload, ContentFramePayload } from '../shared/messages';
 import { sessionStore } from './session-store';
-import { BackendClient } from './backend-client';
+import { BackendClient, SessionExpiredError } from './backend-client';
 import { base64ToArrayBuffer } from '../shared/binary';
 
 const backend = new BackendClient();
@@ -108,9 +108,23 @@ async function handleContentFrame(payload: ContentFramePayload) {
     const buffer = base64ToArrayBuffer(payload.base64);
     await backend.uploadFrame(accessToken, capture.sessionId, buffer, payload.elapsedMs);
   } catch (err) {
-    // Falha de rede não derruba a captura local — mesmo princípio do
-    // CaptureSessionManager.submitFrame no apps/desktop: o próximo frame
-    // tenta de novo, não vale a pena parar a sessão por uma falha pontual.
+    if (err instanceof SessionExpiredError) {
+      // Token expirado no meio da captura: continuar tentando só desperdiçaria 100% dos
+      // frames daqui em diante (achado real ao validar contra uma sessão de verdade — 147
+      // falhas de 401 em sequência, nenhum frame chegando). Para a captura local, limpa o
+      // login e deixa a mensagem pronta pra próxima vez que o popup abrir.
+      console.error('[Coach Play] Sessão expirou durante a captura — encerrando localmente.', err);
+      if (capture.tabId) {
+        await chrome.tabs.sendMessage(capture.tabId, { type: MESSAGE_TYPES.CONTENT_STOP_SAMPLING }).catch(() => {});
+      }
+      await sessionStore.clearCapture();
+      await sessionStore.setAuthExpired(err.message);
+      return;
+    }
+
+    // Qualquer outra falha (rede instável, 5xx pontual) não derruba a captura local —
+    // mesmo princípio do CaptureSessionManager.submitFrame no apps/desktop: o próximo
+    // frame tenta de novo, não vale a pena parar a sessão por uma falha pontual.
     console.error('[Coach Play] Falha ao enviar frame para a API:', err);
   }
 }
@@ -134,7 +148,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           sendResponse({ ok: true, data: await handleLogin(message.email, message.password) });
           break;
         case MESSAGE_TYPES.AUTH_STATUS:
-          sendResponse({ ok: true, data: (await sessionStore.getAuth()).user });
+          sendResponse({
+            ok: true,
+            data: { user: (await sessionStore.getAuth()).user, expiredReason: await sessionStore.takeAuthExpiredReason() },
+          });
           break;
         case MESSAGE_TYPES.AUTH_LOGOUT:
           await handleLogout();
@@ -173,6 +190,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           sendResponse({ ok: false, error: `Mensagem desconhecida: ${message?.type}` });
       }
     } catch (err) {
+      // Qualquer chamada interativa (listar partidas, iniciar captura, pausar...) que
+      // esbarre num token expirado também limpa o login aqui — não só o caminho de
+      // upload de frame (handleContentFrame trata o próprio caso separadamente, incluindo
+      // parar o content script). Efeito: a próxima abertura do popup já mostra a tela de
+      // login com o motivo, em vez de repetir o mesmo erro a cada clique.
+      if (err instanceof SessionExpiredError) await sessionStore.setAuthExpired(err.message);
       sendResponse({ ok: false, error: err instanceof Error ? err.message : 'Erro desconhecido' });
     }
   })();

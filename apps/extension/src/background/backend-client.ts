@@ -1,8 +1,22 @@
 import type { AuthenticatedUser, MatchSummary } from '../shared/messages';
 
 // TODO: tornar configurável (options page) quando isso for além de MVP local —
-// mesmo valor padrão já usado pelo apps/desktop (COACH_PLAY_API_URL).
-const BASE_URL = 'http://localhost:3001/api/v1';
+// mesmo valor padrão já usado pelo apps/desktop (COACH_PLAY_API_URL). Diferente do desktop
+// (mais provável de rodar contra uma API local de dev), a extensão só faz sentido de usar contra
+// uma sessão real de Xbox Remote Play num navegador real — por isso aponta pra produção por
+// padrão. Apontava pra localhost:3001 (bug real, achado ao validar login numa sessão real —
+// "Failed to fetch" porque não há nada ouvindo em localhost na máquina do usuário final).
+const BASE_URL = 'https://coachplayals.com.br/api/v1';
+
+// 401 numa chamada JÁ AUTENTICADA (nunca no login, onde 401 significa credencial errada)
+// significa access token expirado — ver session-store.ts/setAuthExpired para o porquê de
+// não dar pra renovar silenciosamente aqui.
+export class SessionExpiredError extends Error {
+  constructor() {
+    super('Sua sessão expirou (o login dura 15 minutos) — entre novamente para continuar.');
+    this.name = 'SessionExpiredError';
+  }
+}
 
 export class BackendClient {
   async login(email: string, password: string): Promise<{ accessToken: string; user: AuthenticatedUser }> {
@@ -23,6 +37,7 @@ export class BackendClient {
     const res = await fetch(`${BASE_URL}/matches?status=pending&limit=20`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+    if (res.status === 401) throw new SessionExpiredError();
     if (!res.ok) throw new Error(`Falha ao listar partidas (HTTP ${res.status})`);
     const body = (await res.json()) as { data: MatchSummary[] };
     return body.data;
@@ -34,6 +49,7 @@ export class BackendClient {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(params),
     });
+    if (res.status === 401) throw new SessionExpiredError();
     if (!res.ok) throw new Error(`Falha ao criar partida (HTTP ${res.status})`);
     return res.json() as Promise<MatchSummary>;
   }
@@ -47,6 +63,7 @@ export class BackendClient {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(params),
     });
+    if (res.status === 401) throw new SessionExpiredError();
     if (!res.ok) throw new Error(`Falha ao criar sessão de captura (HTTP ${res.status})`);
     return res.json() as Promise<{ id: string; status: string }>;
   }
@@ -62,6 +79,7 @@ export class BackendClient {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(errorMessage ? { errorMessage } : {}),
     });
+    if (res.status === 401) throw new SessionExpiredError();
     if (!res.ok) throw new Error(`Falha ao atualizar sessão (HTTP ${res.status})`);
     return res.json() as Promise<{ id: string; status: string }>;
   }
@@ -76,6 +94,7 @@ export class BackendClient {
       headers: { Authorization: `Bearer ${accessToken}` },
       body: form,
     });
+    if (res.status === 401) throw new SessionExpiredError();
     if (!res.ok) throw new Error(`Falha ao enviar frame (HTTP ${res.status})`);
   }
 }
