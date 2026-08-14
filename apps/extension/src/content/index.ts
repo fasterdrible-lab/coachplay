@@ -2,21 +2,27 @@ import { MESSAGE_TYPES, StartSamplingPayload, ContentFramePayload } from '../sha
 import { pickBestVideoIndex, VideoCandidate } from '../shared/video-picker';
 import { arrayBufferToBase64 } from '../shared/binary';
 
-// Injeção declarativa (manifest.json, document_idle) não é confiável no xbox.com: é uma SPA, e o
-// usuário costuma chegar na URL de /play/... por navegação client-side (sem um carregamento de
-// documento novo), momento em que o Chrome nunca reavalia content_scripts — achado real ao
-// validar contra uma sessão de verdade (Sources > Content scripts vazio, apesar da URL bater com
-// o matches do manifest). Por isso background/index.ts também injeta este script sob demanda
-// (chrome.scripting.executeScript) no momento de "Iniciar captura desta aba", que pode rodar em
-// cima de uma página onde a injeção declarativa já rodou antes. A flag em `window` (não uma
-// variável de módulo, que seria uma cópia nova a cada injeção) garante que só a PRIMEIRA
-// execução registra o listener — duas injeções no mesmo documento nunca duplicam o intervalo de
-// captura.
-const globalFlag = window as unknown as { __coachPlayContentLoaded?: boolean };
-if (!globalFlag.__coachPlayContentLoaded) {
-  globalFlag.__coachPlayContentLoaded = true;
-  initContentScript();
+// Estado compartilhado em `window` (não variável de módulo) — sobrevive a reinjeções deste
+// script na MESMA página (declarativa do manifest + sob demanda de background/index.ts, ou
+// múltiplas chamadas sob demanda). `intervalId` guardado aqui permite que uma nova injeção
+// PARE o intervalo de uma injeção anterior mesmo que essa anterior pertença a uma versão já
+// invalidada da extensão — clearInterval só precisa do ID numérico do timer, isso é 100% API
+// da página, nunca passa pelo `chrome.runtime` (que é o que fica inutilizável quando a
+// extensão é recarregada). Achado real ao validar: um script de antes de um reload da
+// extensão ficava "zumbi" na aba, seu setInterval nunca parava sozinho, gerando "Extension
+// context invalidated" a cada tick pra sempre — e a versão anterior deste guard (um booleano
+// simples) chegava a IMPEDIR a reinjeção nova de sequer começar a rodar.
+const globalState = window as unknown as {
+  __coachPlayIntervalId?: ReturnType<typeof setInterval>;
+  __coachPlayListenerRegistered?: boolean;
+};
+
+if (globalState.__coachPlayIntervalId !== undefined) {
+  clearInterval(globalState.__coachPlayIntervalId);
+  globalState.__coachPlayIntervalId = undefined;
 }
+
+initContentScript();
 
 function initContentScript(): void {
   const ANALYSIS_MAX_WIDTH = 1280;
@@ -38,11 +44,31 @@ function initContentScript(): void {
     return index === -1 ? null : videos[index];
   }
 
+  // chrome.runtime.sendMessage sempre retorna uma Promise (sem callback) — se a extensão foi
+  // recarregada/atualizada enquanto este script ainda capturava, ela rejeita com "Extension
+  // context invalidated.". Nesse caso específico não adianta tentar de novo no próximo tick:
+  // para o intervalo desta instância e avisa uma vez só, em vez de logar o mesmo erro a cada
+  // frame pra sempre. Só fechar e reabrir a aba reinjeta um script com contexto vivo de novo.
+  function sendMessageSafely(message: unknown): void {
+    chrome.runtime.sendMessage(message).catch((err: unknown) => {
+      const text = err instanceof Error ? err.message : String(err);
+      if (text.includes('Extension context invalidated')) {
+        console.warn(
+          '[Coach Play] A extensão foi recarregada/atualizada — parando esta captura. ' +
+            'Feche e reabra a aba do Xbox para continuar.',
+        );
+        stopSampling();
+        return;
+      }
+      console.error('[Coach Play] Falha ao enviar mensagem para o background:', err);
+    });
+  }
+
   function captureFrame(): void {
     const video = findBestVideo();
     if (!video) {
       console.warn('[Coach Play] Nenhum <video> tocando encontrado na página — frame não capturado.');
-      chrome.runtime.sendMessage({ type: MESSAGE_TYPES.CONTENT_VIDEO_NOT_FOUND });
+      sendMessageSafely({ type: MESSAGE_TYPES.CONTENT_VIDEO_NOT_FOUND });
       return;
     }
 
@@ -75,7 +101,7 @@ function initContentScript(): void {
       const elapsedMs = Date.now() - sessionStartedAt;
       // base64, não o ArrayBuffer cru — ver shared/binary.ts para o motivo.
       const payload: ContentFramePayload = { base64: arrayBufferToBase64(buffer), elapsedMs };
-      chrome.runtime.sendMessage({ type: MESSAGE_TYPES.CONTENT_FRAME, payload });
+      sendMessageSafely({ type: MESSAGE_TYPES.CONTENT_FRAME, payload });
     }, 'image/png');
   }
 
@@ -84,21 +110,31 @@ function initContentScript(): void {
     sessionStartedAt = payload.sessionStartedAt;
     const intervalMs = 1000 / Math.max(payload.analysisFps, 1);
     intervalId = setInterval(captureFrame, intervalMs);
+    globalState.__coachPlayIntervalId = intervalId;
   }
 
   function stopSampling(): void {
     if (intervalId !== null) {
       clearInterval(intervalId);
       intervalId = null;
+      globalState.__coachPlayIntervalId = undefined;
     }
   }
 
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message?.type === MESSAGE_TYPES.CONTENT_START_SAMPLING) {
-      startSampling(message.payload as StartSamplingPayload);
-    }
-    if (message?.type === MESSAGE_TYPES.CONTENT_STOP_SAMPLING) {
-      stopSampling();
-    }
-  });
+  // Só registra o listener de mensagens uma vez por página — se a injeção declarativa (manifest)
+  // e a sob demanda (background/index.ts, ao clicar "Iniciar") coexistirem na mesma página
+  // "viva" (contexto de extensão válido em ambas), evita que a mesma mensagem seja processada
+  // duas vezes. Não impede a limpeza do intervalo zumbi feita acima — essa já aconteceu antes
+  // deste ponto, incondicionalmente.
+  if (!globalState.__coachPlayListenerRegistered) {
+    globalState.__coachPlayListenerRegistered = true;
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message?.type === MESSAGE_TYPES.CONTENT_START_SAMPLING) {
+        startSampling(message.payload as StartSamplingPayload);
+      }
+      if (message?.type === MESSAGE_TYPES.CONTENT_STOP_SAMPLING) {
+        stopSampling();
+      }
+    });
+  }
 }
