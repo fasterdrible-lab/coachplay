@@ -29,7 +29,7 @@ const GAME_MODES = [
 ];
 
 const ALLOWED_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo'];
-const MAX_SIZE = 500 * 1024 * 1024; // 500 MB
+const MAX_SIZE = 1024 * 1024 * 1024; // 1 GB
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export default function NewMatchPage() {
       return;
     }
     if (file.size > MAX_SIZE) {
-      setFileError('Arquivo muito grande. Máximo: 500MB.');
+      setFileError('Arquivo muito grande. Máximo: 1GB.');
       return;
     }
     setFileError('');
@@ -390,7 +390,7 @@ export default function NewMatchPage() {
               />
               <p className="text-sm font-medium text-[#f8f8fc]/80">Arraste o vídeo aqui</p>
               <p className="mt-1 text-xs text-[#f8f8fc]/45">ou clique para selecionar</p>
-              <p className="mt-3 text-xs text-[#f8f8fc]/35">MP4, MOV ou AVI · máx. 500MB</p>
+              <p className="mt-3 text-xs text-[#f8f8fc]/35">MP4, MOV ou AVI · máx. 1GB</p>
             </div>
           )}
 

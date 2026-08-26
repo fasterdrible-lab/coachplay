@@ -25,8 +25,8 @@ server {
     include             /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
 
-    # Acima do limite de 500MB de upload de vídeo (ver apps/api/src/modules/matches/video.config.ts)
-    client_max_body_size 550M;
+    # Acima do limite de 1GB de upload de vídeo (ver apps/api/src/modules/matches/video.config.ts)
+    client_max_body_size 1100M;
 
     location /api/ {
         proxy_pass http://api:3001;

@@ -6,7 +6,7 @@ import { Request } from 'express';
 
 const ALLOWED_MIMETYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo'];
 
-export const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500 MB
+export const MAX_VIDEO_SIZE = 1024 * 1024 * 1024; // 1 GB
 
 export const videoStorage = diskStorage({
   destination: (_req: Request, _file: Express.Multer.File, cb) => {

@@ -11,7 +11,7 @@ export class MulterExceptionFilter implements ExceptionFilter {
 
     const message =
       exception.code === 'LIMIT_FILE_SIZE'
-        ? 'Arquivo muito grande. Tamanho máximo: 500MB.'
+        ? 'Arquivo muito grande. Tamanho máximo: 1GB.'
         : `Erro no upload: ${exception.message}`;
 
     res.status(HttpStatus.BAD_REQUEST).json({

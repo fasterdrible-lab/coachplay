@@ -27,8 +27,8 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
 
-    # Acima do limite de 500MB de upload de vídeo (ver apps/api/src/modules/matches/video.config.ts)
-    client_max_body_size 550M;
+    # Acima do limite de 1GB de upload de vídeo (ver apps/api/src/modules/matches/video.config.ts)
+    client_max_body_size 1100M;
 
     location /api/ {
         proxy_pass         http://coachplay-api:3001;
