@@ -32,6 +32,7 @@ describe('SettingsService — chaves de provedores de IA', () => {
     expect(status.anthropic.configured).toBe(false);
     expect(status.openai.configured).toBe(false);
     expect(status.deepSeek.configured).toBe(false);
+    expect(status.groq.configured).toBe(false);
   });
 
   it('reporta configurado via variável de ambiente quando não há chave salva', async () => {
@@ -98,5 +99,26 @@ describe('SettingsService — chaves de provedores de IA', () => {
 
     const decrypted = await service.getDeepSeekKey();
     expect(decrypted).toBe('sk-deepseek-abcdefgh12345678');
+  });
+
+  it('salva, mascara e decifra a chave do Groq', async () => {
+    await service.updateAiProviderKeys({ groqApiKey: 'gsk_abcdefgh12345678' });
+
+    const [[upsertArgs]] = prisma.appSetting.upsert.mock.calls;
+    const storedValue = upsertArgs.create.groqApiKey as string;
+    expect(storedValue).not.toContain('gsk_abcdefgh12345678');
+
+    prisma.appSetting.findUnique.mockResolvedValue({
+      groqApiKey: storedValue,
+      updatedAt: new Date(),
+    });
+
+    const status = await service.getAiProviderStatus();
+    expect(status.groq.configured).toBe(true);
+    expect(status.groq.source).toBe('painel');
+    expect(status.groq.preview).toBe('gsk_••••5678');
+
+    const decrypted = await service.getGroqKey();
+    expect(decrypted).toBe('gsk_abcdefgh12345678');
   });
 });

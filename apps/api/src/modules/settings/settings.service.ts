@@ -53,6 +53,7 @@ export class SettingsService {
     const anthropicEnv = !!this.config.get<string>('ANTHROPIC_API_KEY', '');
     const openaiEnv = !!this.config.get<string>('OPENAI_API_KEY', '');
     const deepSeekEnv = !!this.config.get<string>('DEEPSEEK_API_KEY', '');
+    const groqEnv = !!this.config.get<string>('GROQ_API_KEY', '');
 
     return {
       anthropic: {
@@ -70,6 +71,11 @@ export class SettingsService {
         source: settings?.deepSeekApiKey ? 'painel' : deepSeekEnv ? 'variável de ambiente' : null,
         preview: settings?.deepSeekApiKey ? maskKey(this.decrypt(settings.deepSeekApiKey)) : null,
       },
+      groq: {
+        configured: !!settings?.groqApiKey || groqEnv,
+        source: settings?.groqApiKey ? 'painel' : groqEnv ? 'variável de ambiente' : null,
+        preview: settings?.groqApiKey ? maskKey(this.decrypt(settings.groqApiKey)) : null,
+      },
       updatedAt: settings?.updatedAt ?? null,
     };
   }
@@ -79,6 +85,7 @@ export class SettingsService {
       anthropicApiKey?: string | null;
       openaiApiKey?: string | null;
       deepSeekApiKey?: string | null;
+      groqApiKey?: string | null;
     } = {};
 
     if (dto.anthropicApiKey !== undefined) {
@@ -89,6 +96,9 @@ export class SettingsService {
     }
     if (dto.deepSeekApiKey !== undefined) {
       data.deepSeekApiKey = dto.deepSeekApiKey ? this.encrypt(dto.deepSeekApiKey) : null;
+    }
+    if (dto.groqApiKey !== undefined) {
+      data.groqApiKey = dto.groqApiKey ? this.encrypt(dto.groqApiKey) : null;
     }
 
     await this.prisma.appSetting.upsert({
@@ -116,5 +126,11 @@ export class SettingsService {
     const settings = await this.prisma.appSetting.findUnique({ where: { id: SETTINGS_ID } });
     if (settings?.deepSeekApiKey) return this.decrypt(settings.deepSeekApiKey);
     return this.config.get<string>('DEEPSEEK_API_KEY', '');
+  }
+
+  async getGroqKey(): Promise<string> {
+    const settings = await this.prisma.appSetting.findUnique({ where: { id: SETTINGS_ID } });
+    if (settings?.groqApiKey) return this.decrypt(settings.groqApiKey);
+    return this.config.get<string>('GROQ_API_KEY', '');
   }
 }

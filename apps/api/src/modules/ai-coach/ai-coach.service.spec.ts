@@ -56,6 +56,7 @@ describe('AiCoachService — fallback de IA', () => {
       getAnthropicKey: jest.fn().mockResolvedValue('test-anthropic-key'),
       getOpenAiKey: jest.fn().mockResolvedValue('test-openai-key'),
       getDeepSeekKey: jest.fn().mockResolvedValue('test-deepseek-key'),
+      getGroqKey: jest.fn().mockResolvedValue('test-groq-key'),
     } as unknown as SettingsService;
 
     service = new AiCoachService(prisma as unknown as PrismaService, settings, enabledFeatureFlag);
@@ -108,6 +109,24 @@ describe('AiCoachService — fallback de IA', () => {
     expect(result.status).toBe(AIAnalysisStatus.done);
   });
 
+  it('cai para Groq quando Claude, GPT-4o e DeepSeek falham', async () => {
+    mockAnthropicCreate.mockRejectedValue(new Error('Claude indisponível'));
+    mockOpenAiCreate
+      .mockRejectedValueOnce(new Error('GPT-4o indisponível'))
+      .mockRejectedValueOnce(new Error('DeepSeek indisponível'))
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: 'Resumo via Groq' } }],
+        usage: { prompt_tokens: 50, completion_tokens: 25 },
+      });
+
+    const result = await service.analyzeMatch('match-1');
+
+    expect(mockOpenAiCreate).toHaveBeenCalledTimes(3);
+    expect(result.modelUsed).toBe('llama-3.3-70b-versatile');
+    expect(result.summary).toBe('Resumo via Groq');
+    expect(result.status).toBe(AIAnalysisStatus.done);
+  });
+
   it('marca a análise como failed quando todos os provedores falham', async () => {
     mockAnthropicCreate.mockRejectedValue(new Error('Claude indisponível'));
     mockOpenAiCreate.mockRejectedValue(new Error('Provedor indisponível'));
@@ -149,6 +168,7 @@ describe('AiCoachService — generateEventFeedback', () => {
       getAnthropicKey: jest.fn().mockResolvedValue('test-anthropic-key'),
       getOpenAiKey: jest.fn().mockResolvedValue('test-openai-key'),
       getDeepSeekKey: jest.fn().mockResolvedValue('test-deepseek-key'),
+      getGroqKey: jest.fn().mockResolvedValue('test-groq-key'),
     } as unknown as SettingsService;
 
     service = new AiCoachService(prisma as unknown as PrismaService, settings, enabledFeatureFlag);
@@ -186,6 +206,22 @@ describe('AiCoachService — generateEventFeedback', () => {
 
     expect(mockOpenAiCreate).toHaveBeenCalledTimes(2);
     expect(result?.message).toBe('Ataque pelo lado esquerdo agora.');
+  });
+
+  it('cai para Groq quando Claude, GPT-4o e DeepSeek falham', async () => {
+    mockAnthropicCreate.mockRejectedValue(new Error('Claude indisponível'));
+    mockOpenAiCreate
+      .mockRejectedValueOnce(new Error('GPT-4o indisponível'))
+      .mockRejectedValueOnce(new Error('DeepSeek indisponível'))
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: 'Fica atento à marcação.' } }],
+        usage: { prompt_tokens: 15, completion_tokens: 8 },
+      });
+
+    const result = await service.generateEventFeedback(event, 'sess-1', 'normal');
+
+    expect(mockOpenAiCreate).toHaveBeenCalledTimes(3);
+    expect(result?.message).toBe('Fica atento à marcação.');
   });
 
   it('retorna null sem chamar nenhum provedor quando o nível é "silencioso"', async () => {
@@ -269,6 +305,7 @@ describe('AiCoachService — explainDecision', () => {
       getAnthropicKey: jest.fn().mockResolvedValue('test-anthropic-key'),
       getOpenAiKey: jest.fn().mockResolvedValue('test-openai-key'),
       getDeepSeekKey: jest.fn().mockResolvedValue('test-deepseek-key'),
+      getGroqKey: jest.fn().mockResolvedValue('test-groq-key'),
     } as unknown as SettingsService;
 
     service = new AiCoachService({} as unknown as PrismaService, settings, enabledFeatureFlag);
@@ -331,6 +368,7 @@ describe('AiCoachService — explainDecision', () => {
       getAnthropicKey: jest.fn().mockResolvedValue('test-anthropic-key'),
       getOpenAiKey: jest.fn().mockResolvedValue('test-openai-key'),
       getDeepSeekKey: jest.fn().mockResolvedValue('test-deepseek-key'),
+      getGroqKey: jest.fn().mockResolvedValue('test-groq-key'),
     } as unknown as SettingsService;
     const disabledService = new AiCoachService({} as unknown as PrismaService, settings, disabledFeatureFlag);
 
@@ -373,6 +411,7 @@ describe('AiCoachService — deliverLiveTacticalFeedback', () => {
       getAnthropicKey: jest.fn().mockResolvedValue('test-anthropic-key'),
       getOpenAiKey: jest.fn().mockResolvedValue('test-openai-key'),
       getDeepSeekKey: jest.fn().mockResolvedValue('test-deepseek-key'),
+      getGroqKey: jest.fn().mockResolvedValue('test-groq-key'),
     } as unknown as SettingsService;
 
     service = new AiCoachService(prisma as unknown as PrismaService, settings, enabledFeatureFlag);
@@ -484,6 +523,7 @@ describe('AiCoachService — deliverLiveTacticalFeedback', () => {
       getAnthropicKey: jest.fn().mockResolvedValue('test-anthropic-key'),
       getOpenAiKey: jest.fn().mockResolvedValue('test-openai-key'),
       getDeepSeekKey: jest.fn().mockResolvedValue('test-deepseek-key'),
+      getGroqKey: jest.fn().mockResolvedValue('test-groq-key'),
     } as unknown as SettingsService;
     const disabledService = new AiCoachService(prisma as unknown as PrismaService, settings, disabledFeatureFlag);
 

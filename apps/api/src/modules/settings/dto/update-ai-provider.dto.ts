@@ -12,4 +12,8 @@ export class UpdateAiProviderDto {
   @IsOptional()
   @IsString()
   deepSeekApiKey?: string;
+
+  @IsOptional()
+  @IsString()
+  groqApiKey?: string;
 }

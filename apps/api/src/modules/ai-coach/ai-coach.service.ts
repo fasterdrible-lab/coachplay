@@ -17,6 +17,8 @@ const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 const OPENAI_MODEL = 'gpt-4o';
 const DEEPSEEK_MODEL = 'deepseek-chat';
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const PROMPT_VERSION = '1.0.0';
 const EVENT_FEEDBACK_MAX_TOKENS = 120;
 const DECISION_EXPLANATION_MAX_TOKENS = 200;
@@ -31,6 +33,9 @@ const GPT4O_OUT = 10.0 / 1_000_000;
 // deepseek-chat (cache miss): ~$0.27/M input, $1.10/M output
 const DEEPSEEK_IN = 0.27 / 1_000_000;
 const DEEPSEEK_OUT = 1.1 / 1_000_000;
+// llama-3.3-70b-versatile (Groq): ~$0.59/M input, $0.79/M output
+const GROQ_IN = 0.59 / 1_000_000;
+const GROQ_OUT = 0.79 / 1_000_000;
 
 interface AiResult {
   summary: string;
@@ -90,6 +95,7 @@ export class AiCoachService {
       { model: ANTHROPIC_MODEL, call: () => this.callClaude(prompt), priceIn: CLAUDE_IN, priceOut: CLAUDE_OUT },
       { model: OPENAI_MODEL, call: () => this.callGpt4o(prompt), priceIn: GPT4O_IN, priceOut: GPT4O_OUT },
       { model: DEEPSEEK_MODEL, call: () => this.callDeepSeek(prompt), priceIn: DEEPSEEK_IN, priceOut: DEEPSEEK_OUT },
+      { model: GROQ_MODEL, call: () => this.callGroq(prompt), priceIn: GROQ_IN, priceOut: GROQ_OUT },
     ];
 
     let result: AiResult | undefined;
@@ -156,6 +162,7 @@ export class AiCoachService {
       () => this.callClaude(prompt, EVENT_FEEDBACK_MAX_TOKENS),
       () => this.callGpt4o(prompt, EVENT_FEEDBACK_MAX_TOKENS),
       () => this.callDeepSeek(prompt, EVENT_FEEDBACK_MAX_TOKENS),
+      () => this.callGroq(prompt, EVENT_FEEDBACK_MAX_TOKENS),
     ];
 
     let result: AiResult | undefined;
@@ -209,6 +216,7 @@ export class AiCoachService {
       () => this.callClaude(prompt, DECISION_EXPLANATION_MAX_TOKENS),
       () => this.callGpt4o(prompt, DECISION_EXPLANATION_MAX_TOKENS),
       () => this.callDeepSeek(prompt, DECISION_EXPLANATION_MAX_TOKENS),
+      () => this.callGroq(prompt, DECISION_EXPLANATION_MAX_TOKENS),
     ];
 
     let result: AiResult | undefined;
@@ -362,6 +370,25 @@ jogador em tempo real. Não mencione que a detecção é automática ou pode ser
     const deepseek = new OpenAI({ apiKey: await this.settings.getDeepSeekKey(), baseURL: DEEPSEEK_BASE_URL });
     const response = await deepseek.chat.completions.create({
       model: DEEPSEEK_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: maxTokens,
+    });
+
+    const text = response.choices[0]?.message?.content ?? '';
+
+    return {
+      summary: text,
+      inputTokens: response.usage?.prompt_tokens ?? 0,
+      outputTokens: response.usage?.completion_tokens ?? 0,
+      rawResponse: text,
+    };
+  }
+
+  private async callGroq(prompt: string, maxTokens = 1024): Promise<AiResult> {
+    // API do Groq é compatível com o formato OpenAI — só troca a baseURL e o modelo.
+    const groq = new OpenAI({ apiKey: await this.settings.getGroqKey(), baseURL: GROQ_BASE_URL });
+    const response = await groq.chat.completions.create({
+      model: GROQ_MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: maxTokens,
     });

@@ -407,6 +407,7 @@ model AppSetting {
   anthropicApiKey  String?  @map("anthropic_api_key")
   openaiApiKey     String?  @map("openai_api_key")
   deepSeekApiKey   String?  @map("deepseek_api_key")
+  groqApiKey       String?  @map("groq_api_key")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("app_settings")
