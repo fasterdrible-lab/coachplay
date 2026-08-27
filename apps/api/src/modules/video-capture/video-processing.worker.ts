@@ -34,7 +34,7 @@ export class VideoProcessingWorker extends WorkerHost {
 
     const match = await this.prisma.match.findUnique({
       where: { id: matchId },
-      select: { userId: true },
+      select: { userId: true, playerTeam: true },
     });
     const userId = match?.userId ?? null;
 
@@ -79,6 +79,7 @@ export class VideoProcessingWorker extends WorkerHost {
         framePaths,
         (timestampSeconds, outputPath) =>
           this.videoCaptureService.extractFrameAt(videoPath, timestampSeconds, outputPath),
+        match?.playerTeam ?? null,
       );
 
       // 5.1 — Registra consumo de 1 análise em UsageLog (conta para o limite mensal do plano)

@@ -71,6 +71,20 @@ describe('GeminiVisionService', () => {
     expect(result.costEstimate).toBeCloseTo(0.0305, 6);
   });
 
+  it('inclui o time do jogador no prompt quando informado, pra ajudar o Gemini a identificar o lado certo', async () => {
+    service = new GeminiVisionService(buildSettings('test-key'));
+    mockGenerateContent.mockResolvedValue({
+      text: JSON.stringify({ errors: [] }),
+      usageMetadata: {},
+    });
+
+    await service.analyzeVideo('/tmp/video.mp4', 'Real Madrid');
+
+    const [[callArgs]] = mockGenerateContent.mock.calls;
+    const promptText = callArgs.contents.parts.map((p: any) => p.text).join('\n');
+    expect(promptText).toContain('Real Madrid');
+  });
+
   it('espera o arquivo sair de PROCESSING antes de chamar generateContent', async () => {
     jest.useFakeTimers();
     service = new GeminiVisionService(buildSettings('test-key'));

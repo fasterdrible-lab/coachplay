@@ -54,6 +54,7 @@ export class GameAnalysisService {
     videoPath: string,
     framePaths: string[],
     extractFrame: ExtractFrameFn,
+    playerTeam?: string | null,
   ): Promise<AnalyzeMatchResult> {
     // Limpa análise anterior para suporte a re-análise (detectErrors FK → gameEvents, deletar nessa ordem)
     await this.prisma.$transaction([
@@ -67,7 +68,7 @@ export class GameAnalysisService {
     let usedGemini = false;
 
     try {
-      const { findings, costEstimate } = await this.geminiVision.analyzeVideo(videoPath);
+      const { findings, costEstimate } = await this.geminiVision.analyzeVideo(videoPath, playerTeam);
       visionCostEstimate = costEstimate;
       usedGemini = true;
       errorCount = await this.persistGeminiFindings(matchId, findings, extractFrame);

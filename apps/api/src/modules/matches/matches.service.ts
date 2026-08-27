@@ -23,6 +23,7 @@ const LIST_SELECT = {
   matchDate: true,
   scoreUser: true,
   scoreOpponent: true,
+  playerTeam: true,
   status: true,
   createdAt: true,
   updatedAt: true,
@@ -38,6 +39,7 @@ const DETAIL_SELECT = {
   matchDate: true,
   scoreUser: true,
   scoreOpponent: true,
+  playerTeam: true,
   status: true,
   createdAt: true,
   updatedAt: true,
@@ -106,6 +108,7 @@ export class MatchesService {
         matchDate: dto.matchDate ? new Date(dto.matchDate) : undefined,
         scoreUser: dto.scoreUser,
         scoreOpponent: dto.scoreOpponent,
+        playerTeam: dto.playerTeam,
       },
       select: LIST_SELECT,
     });
@@ -156,6 +159,7 @@ export class MatchesService {
         }),
         ...(dto.scoreUser !== undefined && { scoreUser: dto.scoreUser }),
         ...(dto.scoreOpponent !== undefined && { scoreOpponent: dto.scoreOpponent }),
+        ...(dto.playerTeam !== undefined && { playerTeam: dto.playerTeam }),
       },
       select: LIST_SELECT,
     });

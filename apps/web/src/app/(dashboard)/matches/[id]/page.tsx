@@ -21,6 +21,7 @@ import {
   BookOpen,
   Loader2,
   AlertCircle,
+  Users,
 } from 'lucide-react';
 import { api, API_ORIGIN } from '../../../../lib/api';
 import { cn } from '../../../../lib/utils';
@@ -67,6 +68,7 @@ interface MatchDetail {
   matchDate: string | null;
   scoreUser: number | null;
   scoreOpponent: number | null;
+  playerTeam: string | null;
   status: string;
   createdAt: string;
   gameEvents: GameEvent[];
@@ -352,6 +354,12 @@ export default function MatchReportPage() {
               <span className="flex items-center gap-1 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-[#f8f8fc]/55">
                 <Gamepad2 className="h-3 w-3" />
                 {match.gameMode}
+              </span>
+            )}
+            {match.playerTeam && (
+              <span className="flex items-center gap-1 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-[#f8f8fc]/55">
+                <Users className="h-3 w-3" />
+                {match.playerTeam}
               </span>
             )}
           </div>

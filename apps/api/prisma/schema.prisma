@@ -218,6 +218,7 @@ model Match {
   matchDate     DateTime?   @map("match_date")
   scoreUser     Int?        @map("score_user")
   scoreOpponent Int?        @map("score_opponent")
+  playerTeam    String?     @map("player_team")
   status        MatchStatus @default(pending)
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")

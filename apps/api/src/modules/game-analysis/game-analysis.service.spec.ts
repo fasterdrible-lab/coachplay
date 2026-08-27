@@ -175,6 +175,14 @@ describe('GameAnalysisService', () => {
       expect(prisma.gameEvent.createManyAndReturn).not.toHaveBeenCalled();
     });
 
+    it('repassa o playerTeam pro GeminiVisionService, pra ele identificar o time certo no vídeo', async () => {
+      geminiVision.analyzeVideo.mockResolvedValue({ findings: [], costEstimate: 0 });
+
+      await service.analyzeMatch('match-1', '/tmp/video.mp4', [], extractFrame, 'Real Madrid');
+
+      expect(geminiVision.analyzeVideo).toHaveBeenCalledWith('/tmp/video.mp4', 'Real Madrid');
+    });
+
     it('não falha a análise se a extração do frame do Gemini der erro — só fica sem frameUrl', async () => {
       geminiVision.analyzeVideo.mockResolvedValue({
         findings: [

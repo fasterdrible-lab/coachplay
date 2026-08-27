@@ -29,4 +29,8 @@ export class CreateMatchDto {
   @Min(0)
   @Type(() => Number)
   scoreOpponent?: number;
+
+  @IsOptional()
+  @IsString()
+  playerTeam?: string;
 }

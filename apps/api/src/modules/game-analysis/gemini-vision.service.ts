@@ -51,7 +51,7 @@ export class GeminiVisionService {
    * pra ele apontar os erros táticos de verdade, com timestamp exato de cada um.
    * Substitui a heurística fake de GameAnalysisService (posição no tempo + rotação fixa).
    */
-  async analyzeVideo(videoPath: string): Promise<GeminiAnalysisResult> {
+  async analyzeVideo(videoPath: string, playerTeam?: string | null): Promise<GeminiAnalysisResult> {
     const apiKey = await this.settings.getGeminiKey();
     if (!apiKey) throw new GeminiNotConfiguredError();
 
@@ -66,7 +66,10 @@ export class GeminiVisionService {
 
     const response = await ai.models.generateContent({
       model: MODEL,
-      contents: createUserContent([createPartFromUri(file.uri, file.mimeType), this.buildPrompt()]),
+      contents: createUserContent([
+        createPartFromUri(file.uri, file.mimeType),
+        this.buildPrompt(playerTeam),
+      ]),
       config: {
         mediaResolution: MediaResolution.MEDIA_RESOLUTION_LOW,
         responseMimeType: 'application/json',
@@ -106,11 +109,21 @@ export class GeminiVisionService {
     return file;
   }
 
-  private buildPrompt(): string {
+  private buildPrompt(playerTeam?: string | null): string {
+    const teamHint = playerTeam?.trim()
+      ? `\nO jogador que está gravando joga com: "${playerTeam.trim()}". Use essa informação (nome do\n` +
+        `time/clube, cor de camisa, ou lado do campo, o que tiver sido informado) para identificar\n` +
+        `com certeza qual time é o dele no vídeo antes de apontar qualquer erro. Se não conseguir\n` +
+        `identificar o time com confiança a partir dessa descrição, diga isso na sua análise\n` +
+        `mental mas ainda assim faça a melhor tentativa possível — não deixe de responder.\n`
+      : `\nO vídeo não veio com nenhuma informação sobre qual time é o do jogador que está gravando —\n` +
+        `use o contexto da partida (câmera, replays, gols comemorados) pra inferir isso com o\n` +
+        `máximo de confiança possível antes de apontar erros.\n`;
+
     return `Você é um analista tático de EA FC (FIFA). Assista este vídeo de uma partida completa e
 identifique os erros táticos mais importantes cometidos pelo jogador que está gravando (não
 pelo adversário).
-
+${teamHint}
 Para cada erro, informe:
 - timestampSeconds: o segundo exato do vídeo onde o erro acontece
 - category: uma destas 6 opções exatas — ataque, defesa, passe, decisao, posicionamento, finalizacao
