@@ -16,6 +16,7 @@ import {
   Zap,
   CheckCircle2,
   XCircle,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../../../lib/api';
 import { Button } from '../../../components/ui/button';
@@ -84,7 +85,15 @@ function StatusBadge({ status }: { status: MatchStatus }) {
   );
 }
 
-function MatchCard({ match }: { match: Match }) {
+function MatchCard({
+  match,
+  isDeleting,
+  onDelete,
+}: {
+  match: Match;
+  isDeleting: boolean;
+  onDelete: (match: Match) => void;
+}) {
   const hasScore = match.scoreUser !== null && match.scoreOpponent !== null;
   const overallScore = match.report?.overallScore ?? null;
 
@@ -139,18 +148,29 @@ function MatchCard({ match }: { match: Match }) {
         ) : (
           <span />
         )}
-        <Link
-          href={`/matches/${match.id}`}
-          aria-disabled={match.status !== 'analyzed'}
-          className={cn(
-            'text-xs font-medium transition-colors',
-            match.status === 'analyzed'
-              ? 'text-gold-bright hover:text-gold'
-              : 'pointer-events-none text-[#f8f8fc]/35',
-          )}
-        >
-          Ver análise →
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onDelete(match)}
+            disabled={isDeleting}
+            aria-label="Excluir partida"
+            className="text-[#f8f8fc]/35 transition-colors hover:text-[#e2718a] disabled:opacity-50"
+          >
+            {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          </button>
+          <Link
+            href={`/matches/${match.id}`}
+            aria-disabled={match.status !== 'analyzed'}
+            className={cn(
+              'text-xs font-medium transition-colors',
+              match.status === 'analyzed'
+                ? 'text-gold-bright hover:text-gold'
+                : 'pointer-events-none text-[#f8f8fc]/35',
+            )}
+          >
+            Ver análise →
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -196,6 +216,8 @@ export default function MatchesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [retryKey, setRetryKey] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
 
   // Debounce search input
   useEffect(() => {
@@ -229,6 +251,27 @@ export default function MatchesPage() {
   }, [page, debouncedSearch, statusFilter, retryKey]);
 
   const hasFilters = !!debouncedSearch || !!statusFilter;
+
+  async function deleteMatch(match: Match) {
+    if (!window.confirm(`Excluir "${match.title ?? 'Partida sem título'}"? Essa ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    setDeletingId(match.id);
+    setActionError('');
+    try {
+      await api.delete(`/matches/${match.id}`);
+      setData((prev) =>
+        prev
+          ? { ...prev, data: prev.data.filter((m) => m.id !== match.id), total: prev.total - 1 }
+          : prev,
+      );
+    } catch {
+      setActionError('Não foi possível excluir esta partida.');
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="p-6">
@@ -278,6 +321,14 @@ export default function MatchesPage() {
         </div>
       </div>
 
+      {/* Action error */}
+      {actionError && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg border border-[#e2718a]/30 bg-[#e2718a]/10 px-4 py-3">
+          <AlertCircle className="h-4 w-4 shrink-0 text-[#e2718a]" />
+          <p className="text-sm text-[#e2718a]">{actionError}</p>
+        </div>
+      )}
+
       {/* Error */}
       {error && (
         <div className="mb-6 flex items-center gap-2 rounded-lg border border-[#e2718a]/30 bg-[#e2718a]/10 px-4 py-3">
@@ -307,7 +358,12 @@ export default function MatchesPage() {
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {data.data.map((match) => (
-                <MatchCard key={match.id} match={match} />
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                  isDeleting={deletingId === match.id}
+                  onDelete={deleteMatch}
+                />
               ))}
             </div>
           )}
