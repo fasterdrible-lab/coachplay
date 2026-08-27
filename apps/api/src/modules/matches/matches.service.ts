@@ -72,6 +72,7 @@ const DETAIL_SELECT = {
       severity: true,
       description: true,
       suggestion: true,
+      frameUrl: true,
     },
   },
   report: {

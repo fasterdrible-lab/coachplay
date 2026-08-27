@@ -2,6 +2,10 @@ import { getToken, setToken, clearToken } from './auth';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
 
+// /uploads (vídeos, frames) é servido pela API fora do prefixo /api/v1
+// (useStaticAssets em main.ts) — resolve a origem uma vez pra montar essas URLs.
+export const API_ORIGIN = BASE_URL.replace(/\/api\/v1\/?$/, '');
+
 // Sem timeout, uma requisição pendurada (ex.: servidor reiniciando no meio da
 // conexão) trava para sempre qualquer tela que dependa dela — como o
 // AuthProvider, deixando o "Carregando..." preso indefinidamente.

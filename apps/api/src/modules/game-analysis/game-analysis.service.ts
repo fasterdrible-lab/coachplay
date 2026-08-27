@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { basename } from 'path';
+import { ConfigService } from '@nestjs/config';
+import { basename, join } from 'path';
+import { copyFileSync, mkdirSync } from 'fs';
 import { ErrorSeverity, MatchStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/database/prisma.service';
 
@@ -23,7 +25,10 @@ const SEVERITIES: ErrorSeverity[] = [ErrorSeverity.low, ErrorSeverity.medium, Er
 export class GameAnalysisService {
   private readonly logger = new Logger(GameAnalysisService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   /**
    * Analisa os frames extraídos de uma partida, detecta eventos e erros básicos
@@ -48,6 +53,14 @@ export class GameAnalysisService {
       this.prisma.gameEvent.deleteMany({ where: { matchId } }),
     ]);
 
+    // Mapa timestamp → caminho do frame de origem — usado depois de o evento ser
+    // persistido (createManyAndReturn não garante que a ordem de retorno bata com a
+    // de entrada), pra saber qual frame copiar quando o evento virar um erro.
+    const frameByTimestamp = new Map<number, string>();
+    framePaths.forEach((framePath, index) => {
+      frameByTimestamp.set(this.frameTimestamp(framePath, index), framePath);
+    });
+
     // 1 — Detecta e persiste eventos (1 por frame = 1 a cada 30s do vídeo)
     const eventData = this.buildEventData(matchId, framePaths);
     const savedEvents = await this.prisma.gameEvent.createManyAndReturn({
@@ -55,8 +68,10 @@ export class GameAnalysisService {
       select: { id: true, category: true, timestampStart: true },
     });
 
-    // 2 — Detecta erros baseados nos eventos persistidos (IDs disponíveis para FK)
-    const errorData = this.buildErrorData(matchId, savedEvents);
+    // 2 — Detecta erros baseados nos eventos persistidos (IDs disponíveis para FK).
+    // O frame de cada erro é copiado pra fora do diretório temporário de frames —
+    // ele é apagado ao final do processamento (video-processing.worker.ts).
+    const errorData = this.buildErrorData(matchId, savedEvents, frameByTimestamp);
     if (errorData.length > 0) {
       await this.prisma.detectedError.createMany({ data: errorData });
     }
@@ -101,6 +116,7 @@ export class GameAnalysisService {
   private buildErrorData(
     matchId: string,
     events: Array<{ id: string; category: string; timestampStart: number }>,
+    frameByTimestamp: Map<number, string>,
   ): Prisma.DetectedErrorCreateManyInput[] {
     const errorEvents = events.filter((e) => ERROR_CATEGORIES.has(e.category));
     const errors: Prisma.DetectedErrorCreateManyInput[] = [];
@@ -108,6 +124,8 @@ export class GameAnalysisService {
     // 1 erro a cada 3 eventos de risco (heurística básica)
     for (let i = 0; i < errorEvents.length; i += 3) {
       const event = errorEvents[i];
+      const framePath = frameByTimestamp.get(event.timestampStart);
+
       errors.push({
         matchId,
         eventId: event.id,
@@ -116,10 +134,32 @@ export class GameAnalysisService {
         severity: SEVERITIES[Math.floor(i / 3) % SEVERITIES.length],
         description: `Erro de ${event.category} identificado aos ${event.timestampStart}s`,
         suggestion: 'Rever posicionamento e tomada de decisão neste trecho da partida',
+        frameUrl: framePath ? this.persistErrorFrame(matchId, framePath) : null,
       });
     }
 
     return errors;
+  }
+
+  /**
+   * Copia o frame de um erro pra fora do diretório temporário de frames (apagado ao
+   * final do processamento) e retorna a URL pública servida por `useStaticAssets`
+   * (main.ts) sob o prefixo /uploads.
+   */
+  private persistErrorFrame(matchId: string, framePath: string): string | null {
+    try {
+      const uploadDir = this.config.get('UPLOAD_DIR', 'uploads');
+      const destDir = join(process.cwd(), uploadDir, 'error-frames', matchId);
+      mkdirSync(destDir, { recursive: true });
+
+      const fileName = basename(framePath);
+      copyFileSync(framePath, join(destDir, fileName));
+
+      return `/uploads/error-frames/${matchId}/${fileName}`;
+    } catch (err) {
+      this.logger.warn(`Match ${matchId}: falha ao persistir frame do erro — ${(err as Error).message}`);
+      return null;
+    }
   }
 
   private phaseCategory(progress: number): string {

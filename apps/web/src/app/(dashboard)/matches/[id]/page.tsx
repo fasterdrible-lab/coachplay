@@ -22,7 +22,7 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react';
-import { api } from '../../../../lib/api';
+import { api, API_ORIGIN } from '../../../../lib/api';
 import { cn } from '../../../../lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -46,6 +46,7 @@ interface DetectedError {
   severity: Severity;
   description: string;
   suggestion: string | null;
+  frameUrl: string | null;
 }
 
 interface ReportScores {
@@ -176,18 +177,30 @@ function ErrorItem({ error }: { error: DetectedError }) {
   const cfg = SEVERITY_CONFIG[error.severity] ?? SEVERITY_CONFIG.low;
   const label = CATEGORY_LABELS[error.category] ?? error.category;
   return (
-    <div className={cn('rounded-lg border p-4', cfg.className)}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
-        <span className="shrink-0 text-xs font-medium">{cfg.label}</span>
-      </div>
-      <p className="mb-2 text-sm text-[#f8f8fc]/80">{error.description}</p>
-      {error.suggestion && (
-        <p className="text-xs text-[#f8f8fc]/45">
-          <span className="font-medium text-[#f8f8fc]/55">→ </span>
-          {error.suggestion}
-        </p>
+    <div className={cn('overflow-hidden rounded-lg border', cfg.className)}>
+      {error.frameUrl && (
+        <a href={`${API_ORIGIN}${error.frameUrl}`} target="_blank" rel="noopener noreferrer">
+          {/* eslint-disable-next-line @next/next/no-img-element -- imagem servida direto pela API, fora do domínio otimizado pelo next/image */}
+          <img
+            src={`${API_ORIGIN}${error.frameUrl}`}
+            alt={`Frame do lance: ${error.description}`}
+            className="aspect-video w-full object-cover"
+          />
+        </a>
       )}
+      <div className="p-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
+          <span className="shrink-0 text-xs font-medium">{cfg.label}</span>
+        </div>
+        <p className="mb-2 text-sm text-[#f8f8fc]/80">{error.description}</p>
+        {error.suggestion && (
+          <p className="text-xs text-[#f8f8fc]/45">
+            <span className="font-medium text-[#f8f8fc]/55">→ </span>
+            {error.suggestion}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
