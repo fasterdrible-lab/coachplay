@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
@@ -242,26 +242,34 @@ export default function MatchReportPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-
-    Promise.allSettled([
+  const fetchMatch = useCallback(async () => {
+    const [matchRes, reportRes] = await Promise.allSettled([
       api.get<MatchDetail>(`/matches/${matchId}`),
       api.get<MatchReport>(`/matches/${matchId}/report`),
-    ]).then(([matchRes, reportRes]) => {
-      if (cancelled) return;
-      if (matchRes.status === 'fulfilled') {
-        setMatch(matchRes.value);
-      } else {
-        setFetchError('Partida não encontrada.');
-      }
-      if (reportRes.status === 'fulfilled') {
-        setReportData(reportRes.value);
-      }
-    }).finally(() => { if (!cancelled) setIsLoading(false); });
-
-    return () => { cancelled = true; };
+    ]);
+    if (matchRes.status === 'fulfilled') {
+      setMatch(matchRes.value);
+    } else {
+      setFetchError('Partida não encontrada.');
+    }
+    if (reportRes.status === 'fulfilled') {
+      setReportData(reportRes.value);
+    }
   }, [matchId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMatch().finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
+  }, [fetchMatch]);
+
+  // A análise roda em background (BullMQ) — sem isso, quem abre a tela enquanto ainda
+  // está "Aguardando"/"Processando" fica preso vendo o status antigo até dar F5.
+  useEffect(() => {
+    if (!match || (match.status !== 'pending' && match.status !== 'processing')) return;
+    const interval = setInterval(fetchMatch, 8_000);
+    return () => clearInterval(interval);
+  }, [match?.status, fetchMatch]);
 
   // ─── Loading ────────────────────────────────────────────────────────────────
 

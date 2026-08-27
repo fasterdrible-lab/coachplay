@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Plus,
@@ -230,25 +230,41 @@ export default function MatchesPage() {
     setPage(1);
   }, [debouncedSearch, statusFilter]);
 
+  const fetchMatches = useCallback(
+    (opts: { showSpinner: boolean }) => {
+      if (opts.showSpinner) setIsLoading(true);
+      setError('');
+
+      const params = new URLSearchParams({ page: String(page), limit: '12' });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (statusFilter) params.set('status', statusFilter);
+
+      return api
+        .get<MatchesResponse>(`/matches?${params.toString()}`)
+        .then((res) => setData(res))
+        .catch(() => setError('Não foi possível carregar as partidas.'))
+        .finally(() => { if (opts.showSpinner) setIsLoading(false); });
+    },
+    [page, debouncedSearch, statusFilter],
+  );
+
   // Fetch matches
   useEffect(() => {
     let cancelled = false;
-
-    setIsLoading(true);
-    setError('');
-
-    const params = new URLSearchParams({ page: String(page), limit: '12' });
-    if (debouncedSearch) params.set('search', debouncedSearch);
-    if (statusFilter) params.set('status', statusFilter);
-
-    api
-      .get<MatchesResponse>(`/matches?${params.toString()}`)
-      .then((res) => { if (!cancelled) setData(res); })
-      .catch(() => { if (!cancelled) setError('Não foi possível carregar as partidas.'); })
-      .finally(() => { if (!cancelled) setIsLoading(false); });
-
+    fetchMatches({ showSpinner: true }).then(() => {
+      if (cancelled) return;
+    });
     return () => { cancelled = true; };
-  }, [page, debouncedSearch, statusFilter, retryKey]);
+  }, [fetchMatches, retryKey]);
+
+  // A análise roda em background — sem isso, uma partida "Aguardando"/"Processando" fica
+  // com o status desatualizado até a pessoa dar F5.
+  useEffect(() => {
+    const hasPending = data?.data.some((m) => m.status === 'pending' || m.status === 'processing');
+    if (!hasPending) return;
+    const interval = setInterval(() => fetchMatches({ showSpinner: false }), 8_000);
+    return () => clearInterval(interval);
+  }, [data, fetchMatches]);
 
   const hasFilters = !!debouncedSearch || !!statusFilter;
 
