@@ -1,5 +1,50 @@
 # Changelog — Coach Play
 
+## [0.47.0] — 2026-08-27
+
+### Fixed
+- **Crítico — `apps/web` ficava com tela travada/em branco depois de 15min de uso, só
+  recuperava limpando dados de navegação**: reportado como "erro ao acessar partidas
+  analisadas" e antes disso como "acesso não autorizado" ao salvar chave de IA no admin.
+  Investigação (nginx access log da VPS, correlacionando por timestamp): `GET
+  /api/v1/matches/:id` e `/matches/:id/report` voltando 401 — o access token
+  (`JWT_ACCESS_EXPIRES_IN=15m`) tinha expirado. Mesma causa raiz já documentada no
+  CHANGELOG 0.46.0 para `apps/extension` (e que também afeta `apps/desktop`): nenhuma
+  renovação automática existia. Mas o efeito em `apps/web` é pior que nos outros
+  clientes — não existia nem tratamento de erro dedicado: como o `AuthProvider`
+  ([auth-provider.tsx](apps/web/src/providers/auth-provider.tsx)) só confere a sessão
+  **uma vez**, ao montar a página, ele não percebe o 401 de uma chamada de dados feita
+  no meio de uma navegação client-side já em andamento — a sidebar renderiza
+  normalmente (estado de auth "válido" desatualizado), só os dados da página em si
+  ficam quebrados, sem nenhum redirecionamento ou aviso pro usuário.
+  Corrigido em [api.ts](apps/web/src/lib/api.ts): qualquer 401 agora dispara
+  `POST /auth/refresh` (usa o cookie httpOnly `refresh_token` de 7 dias, que já
+  existia e não tinha esse uso) e repete a chamada original automaticamente antes de
+  desistir; `refreshPromise` deduplica corridas quando várias chamadas expiram juntas.
+  Só cai pro `/login` se o cookie de 7 dias também estiver inválido/expirado — aí sim é
+  logout de verdade, não um bug.
+- Ao investigar o caso acima, achado um bug separado e real de dados: `GameAnalysisService`
+  gera eventos/erros **sem olhar o conteúdo do vídeo** — categoria por posição no tempo,
+  severidade em rotação fixa a cada 3º evento
+  ([game-analysis.service.ts:32-33](apps/api/src/modules/game-analysis/game-analysis.service.ts#L32),
+  TODO explícito no código pra isso ser substituído por análise multimodal). A IA (Claude/
+  GPT/DeepSeek/Groq) só narra esses dados fabricados em texto, nunca julga se algo foi erro.
+  Ainda não corrigido — ver discussão em aberto sobre trocar por um modelo com entendimento
+  nativo de vídeo (ex. Gemini) pra detecção real, e adicionar player com clique-pra-pular-
+  pro-timestamp do erro na tela de análise (`matches/[id]/page.tsx` hoje não renderiza
+  vídeo nenhum, mesmo os timestamps já existindo no banco).
+
+### Notes
+- **`apps/desktop` continua sem nenhuma renovação de sessão** (nem silenciosa, nem aviso
+  como a extensão ganhou em 0.46.0) — mesma classe de bug, ainda não tratada nesse cliente.
+  Verificar se vale aplicar o mesmo padrão do 0.46.0 (extensão) lá, já que sessões de
+  captura no desktop também costumam passar de 15min.
+- Se esse tipo de sintoma ("tela branca/preta que só volta limpando cookies", "acesso não
+  autorizado" aparecendo do nada em uma sessão que estava logada) reaparecer em produção,
+  primeiro suspeitar de expiração de token antes de qualquer outra causa — já foi a raiz
+  real três vezes nesta mesma investigação (extensão em 0.46.0, e dois sintomas
+  aparentemente não relacionados aqui no mesmo dia).
+
 ## [0.46.0] — 2026-08-14
 
 ### Fixed
