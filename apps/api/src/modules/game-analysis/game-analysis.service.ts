@@ -4,6 +4,7 @@ import { basename, join } from 'path';
 import { copyFileSync, mkdirSync } from 'fs';
 import { ErrorSeverity, MatchStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../shared/database/prisma.service';
+import { GeminiVisionService, GeminiNotConfiguredError, GeminiFinding } from './gemini-vision.service';
 
 const SEGMENT_SECONDS = 30;
 
@@ -21,6 +22,12 @@ const ERROR_CATEGORIES = new Set(['defesa', 'decisao', 'posicionamento']);
 
 const SEVERITIES: ErrorSeverity[] = [ErrorSeverity.low, ErrorSeverity.medium, ErrorSeverity.high];
 
+export type ExtractFrameFn = (timestampSeconds: number, outputPath: string) => Promise<void>;
+
+export interface AnalyzeMatchResult {
+  visionCostEstimate: number;
+}
+
 @Injectable()
 export class GameAnalysisService {
   private readonly logger = new Logger(GameAnalysisService.name);
@@ -28,30 +35,125 @@ export class GameAnalysisService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly geminiVision: GeminiVisionService,
   ) {}
 
   /**
-   * Analisa os frames extraídos de uma partida, detecta eventos e erros básicos
-   * e persiste os resultados no banco. Atualiza match.status para 'analyzed'.
+   * Analisa uma partida e persiste eventos/erros no banco. Atualiza match.status para
+   * 'analyzed'.
    *
-   * TODO (Task 4.4): substituir lógica de detecção por análise multimodal
-   *                  via Claude Sonnet 4.6 (frames enviados como imagens).
+   * Tenta análise real via Gemini (assiste o vídeo inteiro, aponta os erros de verdade
+   * com timestamp exato — ver GeminiVisionService). Se a chave não estiver configurada,
+   * cai na heurística antiga (categoria por posição no tempo do vídeo, erro em rotação
+   * fixa) usando o grid de frames extraído a cada 30s. Qualquer outra falha do Gemini
+   * (configurado mas com erro real) propaga — o worker já tem retry com backoff e marca
+   * a partida como failed se todas as tentativas esgotarem.
    */
-  async analyzeMatch(matchId: string, framePaths: string[]): Promise<void> {
-    if (framePaths.length === 0) {
-      this.logger.warn(`Match ${matchId}: nenhum frame disponível — analisado sem eventos`);
-      await this.prisma.match.update({
-        where: { id: matchId },
-        data: { status: MatchStatus.analyzed },
-      });
-      return;
-    }
-
+  async analyzeMatch(
+    matchId: string,
+    videoPath: string,
+    framePaths: string[],
+    extractFrame: ExtractFrameFn,
+  ): Promise<AnalyzeMatchResult> {
     // Limpa análise anterior para suporte a re-análise (detectErrors FK → gameEvents, deletar nessa ordem)
     await this.prisma.$transaction([
       this.prisma.detectedError.deleteMany({ where: { matchId } }),
       this.prisma.gameEvent.deleteMany({ where: { matchId } }),
     ]);
+
+    let visionCostEstimate = 0;
+    let eventCount = 0;
+    let errorCount = 0;
+    let usedGemini = false;
+
+    try {
+      const { findings, costEstimate } = await this.geminiVision.analyzeVideo(videoPath);
+      visionCostEstimate = costEstimate;
+      usedGemini = true;
+      errorCount = await this.persistGeminiFindings(matchId, findings, extractFrame);
+      eventCount = findings.length;
+    } catch (err) {
+      if (!(err instanceof GeminiNotConfiguredError)) throw err;
+      this.logger.warn(`Match ${matchId}: Gemini não configurado — usando heurística de fallback`);
+
+      const fallback = await this.analyzeWithHeuristic(matchId, framePaths);
+      eventCount = fallback.eventCount;
+      errorCount = fallback.errorCount;
+    }
+
+    await this.prisma.match.update({
+      where: { id: matchId },
+      data: { status: MatchStatus.analyzed },
+    });
+
+    this.logger.log(
+      `Match ${matchId}: análise concluída (${usedGemini ? 'Gemini' : 'heurística'}) — ` +
+        `${eventCount} eventos, ${errorCount} erros`,
+    );
+
+    return { visionCostEstimate };
+  }
+
+  // ─── Caminho real (Gemini) ───────────────────────────────────────────────────
+
+  private async persistGeminiFindings(
+    matchId: string,
+    findings: GeminiFinding[],
+    extractFrame: ExtractFrameFn,
+  ): Promise<number> {
+    const uploadDir = this.config.get('UPLOAD_DIR', 'uploads');
+    const destDir = join(process.cwd(), uploadDir, 'error-frames', matchId);
+
+    for (const [index, finding] of findings.entries()) {
+      const event = await this.prisma.gameEvent.create({
+        data: {
+          matchId,
+          eventType: 'gemini_finding',
+          category: finding.category,
+          timestampStart: finding.timestampSeconds,
+          timestampEnd: finding.timestampSeconds,
+          description: finding.description,
+        },
+      });
+
+      let frameUrl: string | null = null;
+      try {
+        mkdirSync(destDir, { recursive: true });
+        const fileName = `error_${String(index + 1).padStart(4, '0')}.jpg`;
+        await extractFrame(finding.timestampSeconds, join(destDir, fileName));
+        frameUrl = `/uploads/error-frames/${matchId}/${fileName}`;
+      } catch (err) {
+        this.logger.warn(`Match ${matchId}: falha ao extrair frame do erro — ${(err as Error).message}`);
+      }
+
+      await this.prisma.detectedError.create({
+        data: {
+          matchId,
+          eventId: event.id,
+          errorType: `${finding.category}_incorreto`,
+          category: finding.category,
+          severity: finding.severity as ErrorSeverity,
+          description: finding.description,
+          suggestion: finding.suggestion,
+          frameUrl,
+        },
+      });
+    }
+
+    return findings.length;
+  }
+
+  // ─── Fallback — heurística antiga por posição no tempo ───────────────────────
+  // Usada só quando GEMINI_API_KEY não está configurada.
+
+  private async analyzeWithHeuristic(
+    matchId: string,
+    framePaths: string[],
+  ): Promise<{ eventCount: number; errorCount: number }> {
+    if (framePaths.length === 0) {
+      this.logger.warn(`Match ${matchId}: nenhum frame disponível — analisado sem eventos`);
+      return { eventCount: 0, errorCount: 0 };
+    }
 
     // Mapa timestamp → caminho do frame de origem — usado depois de o evento ser
     // persistido (createManyAndReturn não garante que a ordem de retorno bata com a
@@ -61,35 +163,19 @@ export class GameAnalysisService {
       frameByTimestamp.set(this.frameTimestamp(framePath, index), framePath);
     });
 
-    // 1 — Detecta e persiste eventos (1 por frame = 1 a cada 30s do vídeo)
     const eventData = this.buildEventData(matchId, framePaths);
     const savedEvents = await this.prisma.gameEvent.createManyAndReturn({
       data: eventData,
       select: { id: true, category: true, timestampStart: true },
     });
 
-    // 2 — Detecta erros baseados nos eventos persistidos (IDs disponíveis para FK).
-    // O frame de cada erro é copiado pra fora do diretório temporário de frames —
-    // ele é apagado ao final do processamento (video-processing.worker.ts).
     const errorData = this.buildErrorData(matchId, savedEvents, frameByTimestamp);
     if (errorData.length > 0) {
       await this.prisma.detectedError.createMany({ data: errorData });
     }
 
-    // 3 — Marca partida como analisada
-    await this.prisma.match.update({
-      where: { id: matchId },
-      data: { status: MatchStatus.analyzed },
-    });
-
-    this.logger.log(
-      `Match ${matchId}: análise concluída — ${savedEvents.length} eventos, ${errorData.length} erros`,
-    );
+    return { eventCount: savedEvents.length, errorCount: errorData.length };
   }
-
-  // ─── Detecção básica por fase da partida ────────────────────────────────────
-  // Distribui categorias proporcionalmente ao andamento do vídeo.
-  // Task 4.4 substituirá isso por classificação real via visão computacional.
 
   private buildEventData(
     matchId: string,

@@ -68,8 +68,18 @@ export class VideoProcessingWorker extends WorkerHost {
         `Job ${job.id}: ${framePaths.length} frames extraídos — iniciando análise`,
       );
 
-      // 5 — Análise de eventos e erros; atualiza match.status = analyzed ao concluir
-      await this.gameAnalysisService.analyzeMatch(matchId, framePaths);
+      // 5 — Análise de eventos e erros (via Gemini, com fallback heurístico se a chave
+      // não estiver configurada); atualiza match.status = analyzed ao concluir. O
+      // extractFrame injetado aqui é o que permite o frame exato de cada erro real do
+      // Gemini (GameAnalysisModule não importa VideoCaptureModule pra evitar dependência
+      // circular entre os dois módulos — este worker já tem os dois).
+      const { visionCostEstimate } = await this.gameAnalysisService.analyzeMatch(
+        matchId,
+        videoPath,
+        framePaths,
+        (timestampSeconds, outputPath) =>
+          this.videoCaptureService.extractFrameAt(videoPath, timestampSeconds, outputPath),
+      );
 
       // 5.1 — Registra consumo de 1 análise em UsageLog (conta para o limite mensal do plano)
       await this.plansService.registerAnalysisUsage(matchId);
@@ -84,7 +94,7 @@ export class VideoProcessingWorker extends WorkerHost {
 
       // 6 — AI Coach: gera resumo tático e persiste AIAnalysis; falha não cancela a partida
       try {
-        await this.aiCoachService.analyzeMatch(matchId);
+        await this.aiCoachService.analyzeMatch(matchId, visionCostEstimate);
       } catch (aiErr) {
         this.logger.warn(
           `Job ${job.id}: AI Coach falhou para partida ${matchId} — ${(aiErr as Error).message}`,

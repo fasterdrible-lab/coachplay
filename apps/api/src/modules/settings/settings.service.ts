@@ -54,6 +54,7 @@ export class SettingsService {
     const openaiEnv = !!this.config.get<string>('OPENAI_API_KEY', '');
     const deepSeekEnv = !!this.config.get<string>('DEEPSEEK_API_KEY', '');
     const groqEnv = !!this.config.get<string>('GROQ_API_KEY', '');
+    const geminiEnv = !!this.config.get<string>('GEMINI_API_KEY', '');
 
     return {
       anthropic: {
@@ -76,6 +77,11 @@ export class SettingsService {
         source: settings?.groqApiKey ? 'painel' : groqEnv ? 'variável de ambiente' : null,
         preview: settings?.groqApiKey ? maskKey(this.decrypt(settings.groqApiKey)) : null,
       },
+      gemini: {
+        configured: !!settings?.geminiApiKey || geminiEnv,
+        source: settings?.geminiApiKey ? 'painel' : geminiEnv ? 'variável de ambiente' : null,
+        preview: settings?.geminiApiKey ? maskKey(this.decrypt(settings.geminiApiKey)) : null,
+      },
       updatedAt: settings?.updatedAt ?? null,
     };
   }
@@ -86,6 +92,7 @@ export class SettingsService {
       openaiApiKey?: string | null;
       deepSeekApiKey?: string | null;
       groqApiKey?: string | null;
+      geminiApiKey?: string | null;
     } = {};
 
     if (dto.anthropicApiKey !== undefined) {
@@ -99,6 +106,9 @@ export class SettingsService {
     }
     if (dto.groqApiKey !== undefined) {
       data.groqApiKey = dto.groqApiKey ? this.encrypt(dto.groqApiKey) : null;
+    }
+    if (dto.geminiApiKey !== undefined) {
+      data.geminiApiKey = dto.geminiApiKey ? this.encrypt(dto.geminiApiKey) : null;
     }
 
     await this.prisma.appSetting.upsert({
@@ -132,5 +142,11 @@ export class SettingsService {
     const settings = await this.prisma.appSetting.findUnique({ where: { id: SETTINGS_ID } });
     if (settings?.groqApiKey) return this.decrypt(settings.groqApiKey);
     return this.config.get<string>('GROQ_API_KEY', '');
+  }
+
+  async getGeminiKey(): Promise<string> {
+    const settings = await this.prisma.appSetting.findUnique({ where: { id: SETTINGS_ID } });
+    if (settings?.geminiApiKey) return this.decrypt(settings.geminiApiKey);
+    return this.config.get<string>('GEMINI_API_KEY', '');
   }
 }

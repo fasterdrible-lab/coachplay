@@ -16,4 +16,8 @@ export class UpdateAiProviderDto {
   @IsOptional()
   @IsString()
   groqApiKey?: string;
+
+  @IsOptional()
+  @IsString()
+  geminiApiKey?: string;
 }

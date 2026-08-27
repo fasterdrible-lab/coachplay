@@ -54,7 +54,7 @@ export class AiCoachService {
     private readonly tacticalEngineFlag: TacticalEngineFeatureFlagService,
   ) {}
 
-  async analyzeMatch(matchId: string): Promise<AIAnalysis> {
+  async analyzeMatch(matchId: string, visionCostEstimate = 0): Promise<AIAnalysis> {
     const [gameEvents, detectedErrors] = await Promise.all([
       this.prisma.gameEvent.findMany({
         where: { matchId },
@@ -120,7 +120,9 @@ export class AiCoachService {
       this.logger.error(`Match ${matchId}: todos os provedores de IA falharam — ${lastError?.message}`);
       await this.prisma.aIAnalysis.update({
         where: { matchId },
-        data: { status: AIAnalysisStatus.failed },
+        // Mesmo sem narração, o custo da análise de vídeo (Gemini) já foi gasto —
+        // não perder esse valor do rastreamento de custo (Uso & IA no admin).
+        data: { status: AIAnalysisStatus.failed, costEstimate: visionCostEstimate },
       });
       throw lastError;
     }
@@ -130,7 +132,7 @@ export class AiCoachService {
       data: {
         modelUsed,
         summary: result.summary,
-        costEstimate,
+        costEstimate: visionCostEstimate + costEstimate,
         rawResponse: result.rawResponse,
         status: AIAnalysisStatus.done,
       },

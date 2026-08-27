@@ -50,6 +50,7 @@ interface AiProviderStatus {
   openai: ProviderStatus;
   deepSeek: ProviderStatus;
   groq: ProviderStatus;
+  gemini: ProviderStatus;
   updatedAt: string | null;
 }
 
@@ -75,6 +76,7 @@ export default function AdminUsagePage() {
   const [openaiKeyInput, setOpenaiKeyInput] = useState('');
   const [deepSeekKeyInput, setDeepSeekKeyInput] = useState('');
   const [groqKeyInput, setGroqKeyInput] = useState('');
+  const [geminiKeyInput, setGeminiKeyInput] = useState('');
   const [isSavingProviders, setIsSavingProviders] = useState(false);
   const [providerError, setProviderError] = useState('');
   const [providerSaved, setProviderSaved] = useState(false);
@@ -119,12 +121,18 @@ export default function AdminUsagePage() {
     setProviderSaved(false);
 
     try {
-      const body: { anthropicApiKey?: string; openaiApiKey?: string; deepSeekApiKey?: string; groqApiKey?: string } =
-        {};
+      const body: {
+        anthropicApiKey?: string;
+        openaiApiKey?: string;
+        deepSeekApiKey?: string;
+        groqApiKey?: string;
+        geminiApiKey?: string;
+      } = {};
       if (anthropicKeyInput.trim()) body.anthropicApiKey = anthropicKeyInput.trim();
       if (openaiKeyInput.trim()) body.openaiApiKey = openaiKeyInput.trim();
       if (deepSeekKeyInput.trim()) body.deepSeekApiKey = deepSeekKeyInput.trim();
       if (groqKeyInput.trim()) body.groqApiKey = groqKeyInput.trim();
+      if (geminiKeyInput.trim()) body.geminiApiKey = geminiKeyInput.trim();
 
       const res = await api.put<AiProviderStatus>('/settings/ai-provider', body);
       setProviderStatus(res);
@@ -132,6 +140,7 @@ export default function AdminUsagePage() {
       setOpenaiKeyInput('');
       setDeepSeekKeyInput('');
       setGroqKeyInput('');
+      setGeminiKeyInput('');
       setProviderSaved(true);
       setTimeout(() => setProviderSaved(false), 3000);
     } catch (err) {
@@ -141,7 +150,9 @@ export default function AdminUsagePage() {
     }
   }
 
-  async function handleRemoveKey(provider: 'anthropicApiKey' | 'openaiApiKey' | 'deepSeekApiKey' | 'groqApiKey') {
+  async function handleRemoveKey(
+    provider: 'anthropicApiKey' | 'openaiApiKey' | 'deepSeekApiKey' | 'groqApiKey' | 'geminiApiKey',
+  ) {
     setIsSavingProviders(true);
     setProviderError('');
 
@@ -171,7 +182,7 @@ export default function AdminUsagePage() {
           <div>
             <h2 className="text-sm font-semibold text-white/80">Provedores de IA</h2>
             <p className="text-xs text-white/45">
-              Chaves de API do Anthropic Claude, OpenAI GPT-4o, DeepSeek e Groq usadas na análise das partidas
+              Chaves de API do Anthropic Claude, OpenAI GPT-4o, DeepSeek, Groq e Gemini (análise de vídeo) usadas na análise das partidas
             </p>
           </div>
         </div>
@@ -182,13 +193,14 @@ export default function AdminUsagePage() {
           </div>
         ) : (
           <>
-            <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
               {(
                 [
                   { key: 'anthropicApiKey' as const, label: 'Anthropic (Claude)', status: providerStatus?.anthropic },
                   { key: 'openaiApiKey' as const, label: 'OpenAI (GPT-4o)', status: providerStatus?.openai },
                   { key: 'deepSeekApiKey' as const, label: 'DeepSeek', status: providerStatus?.deepSeek },
                   { key: 'groqApiKey' as const, label: 'Groq', status: providerStatus?.groq },
+                  { key: 'geminiApiKey' as const, label: 'Gemini (vídeo)', status: providerStatus?.gemini },
                 ]
               ).map(({ key, label, status }) => (
                 <div
@@ -231,7 +243,7 @@ export default function AdminUsagePage() {
             </div>
 
             <form onSubmit={handleSaveProviders} className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <Input
                   id="anthropicApiKey"
                   label="Nova chave Anthropic"
@@ -268,6 +280,15 @@ export default function AdminUsagePage() {
                   value={groqKeyInput}
                   onChange={(e) => setGroqKeyInput(e.target.value)}
                 />
+                <Input
+                  id="geminiApiKey"
+                  label="Nova chave Gemini"
+                  type="password"
+                  autoComplete="off"
+                  placeholder="AIza..."
+                  value={geminiKeyInput}
+                  onChange={(e) => setGeminiKeyInput(e.target.value)}
+                />
               </div>
 
               {providerError && (
@@ -285,7 +306,8 @@ export default function AdminUsagePage() {
                     !anthropicKeyInput.trim() &&
                     !openaiKeyInput.trim() &&
                     !deepSeekKeyInput.trim() &&
-                    !groqKeyInput.trim()
+                    !groqKeyInput.trim() &&
+                    !geminiKeyInput.trim()
                   }
                 >
                   {isSavingProviders ? 'Salvando...' : 'Salvar chaves'}

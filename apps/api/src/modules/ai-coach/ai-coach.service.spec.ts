@@ -135,7 +135,31 @@ describe('AiCoachService — fallback de IA', () => {
 
     expect(prisma.aIAnalysis.update).toHaveBeenCalledWith({
       where: { matchId: 'match-1' },
-      data: { status: AIAnalysisStatus.failed },
+      data: { status: AIAnalysisStatus.failed, costEstimate: 0 },
+    });
+  });
+
+  it('soma o custo da análise de vídeo (Gemini) ao custo da narração', async () => {
+    mockAnthropicCreate.mockResolvedValue({
+      content: [{ type: 'text', text: 'Resumo via Claude' }],
+      usage: { input_tokens: 100, output_tokens: 50 },
+    });
+
+    const result = await service.analyzeMatch('match-1', 0.042);
+
+    // narração: 100*3/1e6 + 50*15/1e6 = 0.0003 + 0.00075 = 0.00105
+    expect(result.costEstimate).toBeCloseTo(0.042 + 0.00105, 6);
+  });
+
+  it('não perde o custo da análise de vídeo mesmo quando a narração falha por completo', async () => {
+    mockAnthropicCreate.mockRejectedValue(new Error('Claude indisponível'));
+    mockOpenAiCreate.mockRejectedValue(new Error('Provedor indisponível'));
+
+    await expect(service.analyzeMatch('match-1', 0.042)).rejects.toThrow('Provedor indisponível');
+
+    expect(prisma.aIAnalysis.update).toHaveBeenCalledWith({
+      where: { matchId: 'match-1' },
+      data: { status: AIAnalysisStatus.failed, costEstimate: 0.042 },
     });
   });
 });

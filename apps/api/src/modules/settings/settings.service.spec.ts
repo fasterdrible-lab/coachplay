@@ -33,6 +33,7 @@ describe('SettingsService — chaves de provedores de IA', () => {
     expect(status.openai.configured).toBe(false);
     expect(status.deepSeek.configured).toBe(false);
     expect(status.groq.configured).toBe(false);
+    expect(status.gemini.configured).toBe(false);
   });
 
   it('reporta configurado via variável de ambiente quando não há chave salva', async () => {
@@ -120,5 +121,26 @@ describe('SettingsService — chaves de provedores de IA', () => {
 
     const decrypted = await service.getGroqKey();
     expect(decrypted).toBe('gsk_abcdefgh12345678');
+  });
+
+  it('salva, mascara e decifra a chave do Gemini', async () => {
+    await service.updateAiProviderKeys({ geminiApiKey: 'AIzaSyABCDEFGH12345678' });
+
+    const [[upsertArgs]] = prisma.appSetting.upsert.mock.calls;
+    const storedValue = upsertArgs.create.geminiApiKey as string;
+    expect(storedValue).not.toContain('AIzaSyABCDEFGH12345678');
+
+    prisma.appSetting.findUnique.mockResolvedValue({
+      geminiApiKey: storedValue,
+      updatedAt: new Date(),
+    });
+
+    const status = await service.getAiProviderStatus();
+    expect(status.gemini.configured).toBe(true);
+    expect(status.gemini.source).toBe('painel');
+    expect(status.gemini.preview).toBe('AIza••••5678');
+
+    const decrypted = await service.getGeminiKey();
+    expect(decrypted).toBe('AIzaSyABCDEFGH12345678');
   });
 });

@@ -96,6 +96,25 @@ export class VideoCaptureService {
   }
 
   /**
+   * Extrai um único frame no timestamp exato informado (ex.: o segundo que o Gemini
+   * apontou como o momento de um erro) — mais preciso que reusar o grid de 30s do
+   * extractFrames, que pode errar por até 15s.
+   */
+  async extractFrameAt(videoPath: string, timestampSeconds: number, outputPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      ffmpeg(videoPath)
+        .seekInput(Math.max(0, timestampSeconds))
+        .outputOptions(['-frames:v 1', '-q:v 2'])
+        .output(outputPath)
+        .on('end', () => resolve())
+        .on('error', (err: Error) =>
+          reject(new Error(`FFmpeg falhou ao extrair frame em ${timestampSeconds}s: ${err.message}`)),
+        )
+        .run();
+    });
+  }
+
+  /**
    * Remove o diretório de frames temporários de uma partida.
    * Chamado após a análise ser concluída (Task 4.3/4.4).
    */
