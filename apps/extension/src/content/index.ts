@@ -1,6 +1,8 @@
 import { MESSAGE_TYPES, StartSamplingPayload, ContentFramePayload } from '../shared/messages';
 import { pickBestVideoIndex, VideoCandidate } from '../shared/video-picker';
 import { arrayBufferToBase64 } from '../shared/binary';
+import { calculateOutputDimensions } from '../shared/frame-dimensions';
+import { DEFAULT_MAX_WIDTH, DEFAULT_MAX_HEIGHT } from '../shared/capture-config';
 
 // Estado compartilhado em `window` (não variável de módulo) — sobrevive a reinjeções deste
 // script na MESMA página (declarativa do manifest + sob demanda de background/index.ts, ou
@@ -25,11 +27,16 @@ if (globalState.__coachPlayIntervalId !== undefined) {
 initContentScript();
 
 function initContentScript(): void {
-  const ANALYSIS_MAX_WIDTH = 1280;
-  const ANALYSIS_MAX_HEIGHT = 720;
-
+  // Este content script é o provider de FALLBACK (VideoElementCaptureProvider) — só roda
+  // quando chrome.tabCapture não está disponível ou falhou. Continua em PNG (o caminho
+  // principal via tabCapture já comprime em JPEG no offscreen document).
   let intervalId: ReturnType<typeof setInterval> | null = null;
+  let intervalMs = 0;
   let sessionStartedAt = 0;
+  // Quantos ticks seguidos sem <video> tocando — só loga/avisa o background no PRIMEIRO miss
+  // pra não spammar o console; a decisão de quando isso vira falha de provider é do
+  // VideoElementCaptureProvider (VIDEO_NOT_FOUND_GRACE_TICKS), não daqui.
+  let consecutiveMisses = 0;
 
   function findBestVideo(): HTMLVideoElement | null {
     const videos = Array.from(document.querySelectorAll('video'));
@@ -67,14 +74,25 @@ function initContentScript(): void {
   function captureFrame(): void {
     const video = findBestVideo();
     if (!video) {
-      console.warn('[Coach Play] Nenhum <video> tocando encontrado na página — frame não capturado.');
-      sendMessageSafely({ type: MESSAGE_TYPES.CONTENT_VIDEO_NOT_FOUND });
+      consecutiveMisses++;
+      if (consecutiveMisses === 1) {
+        console.warn('[Coach Play] Nenhum <video> tocando encontrado na página — frame não capturado.');
+        sendMessageSafely({ type: MESSAGE_TYPES.CONTENT_VIDEO_NOT_FOUND });
+      }
       return;
     }
+    if (consecutiveMisses > 0) {
+      sendMessageSafely({ type: MESSAGE_TYPES.CONTENT_VIDEO_FOUND });
+    }
+    consecutiveMisses = 0;
 
+    const dims = calculateOutputDimensions(
+      { width: video.videoWidth, height: video.videoHeight },
+      { width: DEFAULT_MAX_WIDTH, height: DEFAULT_MAX_HEIGHT },
+    );
     const canvas = document.createElement('canvas');
-    canvas.width = Math.min(video.videoWidth, ANALYSIS_MAX_WIDTH) || ANALYSIS_MAX_WIDTH;
-    canvas.height = Math.min(video.videoHeight, ANALYSIS_MAX_HEIGHT) || ANALYSIS_MAX_HEIGHT;
+    canvas.width = dims.width;
+    canvas.height = dims.height;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
@@ -108,7 +126,16 @@ function initContentScript(): void {
   function startSampling(payload: StartSamplingPayload): void {
     stopSampling();
     sessionStartedAt = payload.sessionStartedAt;
-    const intervalMs = 1000 / Math.max(payload.analysisFps, 1);
+    consecutiveMisses = 0;
+    intervalMs = 1000 / Math.max(payload.analysisFps, 1);
+    intervalId = setInterval(captureFrame, intervalMs);
+    globalState.__coachPlayIntervalId = intervalId;
+  }
+
+  // Retoma reaproveitando o intervalMs já configurado por startSampling — pause/resume não
+  // precisa (nem deveria) reiniciar a contagem de sessionStartedAt.
+  function resumeSampling(): void {
+    if (intervalId !== null || intervalMs === 0) return;
     intervalId = setInterval(captureFrame, intervalMs);
     globalState.__coachPlayIntervalId = intervalId;
   }
@@ -131,6 +158,12 @@ function initContentScript(): void {
     chrome.runtime.onMessage.addListener((message) => {
       if (message?.type === MESSAGE_TYPES.CONTENT_START_SAMPLING) {
         startSampling(message.payload as StartSamplingPayload);
+      }
+      if (message?.type === MESSAGE_TYPES.CONTENT_PAUSE_SAMPLING) {
+        stopSampling();
+      }
+      if (message?.type === MESSAGE_TYPES.CONTENT_RESUME_SAMPLING) {
+        resumeSampling();
       }
       if (message?.type === MESSAGE_TYPES.CONTENT_STOP_SAMPLING) {
         stopSampling();

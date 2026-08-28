@@ -24,12 +24,26 @@ function send<T>(type: string, extra: Record<string, unknown> = {}): Promise<T> 
 
 const root = document.getElementById('root')!;
 
-const STATUS_LABELS: Record<CaptureSessionSnapshot['status'], string> = {
+const STATE_LABELS: Record<CaptureSessionSnapshot['state'], string> = {
+  idle: 'Inativo',
+  starting: 'Iniciando...',
   running: 'Capturando',
   paused: 'Pausado',
+  reconnecting: 'Reconectando...',
+  stopping: 'Encerrando...',
   stopped: 'Encerrado',
-  failed: 'Falhou',
+  failed: 'Erro',
 };
+
+const PROVIDER_LABELS: Record<string, string> = {
+  'tab-capture': 'captura direta da aba',
+  'video-element': 'modo alternativo',
+};
+
+// Estados em que existe uma sessão "presente" o suficiente pra mostrar a tela ativa em vez da
+// tela de seleção de partida — inclui os transitórios (starting/reconnecting/stopping), não só
+// running/paused como antes.
+const ACTIVE_STATES: CaptureSessionSnapshot['state'][] = ['starting', 'running', 'paused', 'reconnecting', 'stopping'];
 
 async function render(): Promise<void> {
   root.innerHTML = '';
@@ -52,7 +66,7 @@ async function render(): Promise<void> {
   }
 
   const snapshot = await send<CaptureSessionSnapshot | null>(MESSAGE_TYPES.CAPTURE_STATUS).catch(() => null);
-  if (snapshot && (snapshot.status === 'running' || snapshot.status === 'paused')) {
+  if (snapshot && ACTIVE_STATES.includes(snapshot.state)) {
     renderActiveSession(user, snapshot);
   } else {
     renderSelectMatch(user);
@@ -207,19 +221,24 @@ function renderStart(user: AuthenticatedUser, matchId: string): void {
 
 function renderActiveSession(user: AuthenticatedUser, snapshot: CaptureSessionSnapshot): void {
   const wrapper = document.createElement('div');
-  const isPaused = snapshot.status === 'paused';
+  const isPaused = snapshot.state === 'paused';
+  const actionsDisabled = snapshot.state === 'starting' || snapshot.state === 'reconnecting' || snapshot.state === 'stopping';
+  const providerLabel = snapshot.provider ? PROVIDER_LABELS[snapshot.provider] : null;
+  const statusLine = [STATE_LABELS[snapshot.state], providerLabel, `${snapshot.fps.analysisFps} FPS de análise`]
+    .filter(Boolean)
+    .join(' · ');
 
   wrapper.innerHTML = `
     <h1>Coach Play</h1>
     <p>${user.name}</p>
     <div class="status-row">
-      <span class="status-dot status-${snapshot.status}"></span>
-      <span>${STATUS_LABELS[snapshot.status]} · ${snapshot.analysisFps} FPS de análise</span>
+      <span class="status-dot status-${snapshot.state}"></span>
+      <span>${statusLine}</span>
     </div>
-    <div id="error" class="error"></div>
+    <div id="error" class="error">${snapshot.state === 'failed' && snapshot.errorMessage ? snapshot.errorMessage : ''}</div>
     <div class="actions">
-      <button id="toggle" class="secondary">${isPaused ? 'Retomar' : 'Pausar'}</button>
-      <button id="stop" class="danger">Encerrar</button>
+      <button id="toggle" class="secondary" ${actionsDisabled ? 'disabled' : ''}>${isPaused ? 'Retomar' : 'Pausar'}</button>
+      <button id="stop" class="danger" ${snapshot.state === 'stopping' ? 'disabled' : ''}>Encerrar</button>
     </div>
   `;
   root.appendChild(wrapper);

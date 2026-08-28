@@ -9,5 +9,6 @@ mkdirSync(dist, { recursive: true });
 cpSync(join(root, 'manifest.json'), join(dist, 'manifest.json'));
 cpSync(join(root, 'src', 'popup', 'popup.html'), join(dist, 'popup.html'));
 cpSync(join(root, 'src', 'popup', 'popup.css'), join(dist, 'popup.css'));
+cpSync(join(root, 'offscreen.html'), join(dist, 'offscreen.html'));
 
-console.log('manifest.json e assets do popup copiados para dist/');
+console.log('manifest.json e assets do popup/offscreen copiados para dist/');

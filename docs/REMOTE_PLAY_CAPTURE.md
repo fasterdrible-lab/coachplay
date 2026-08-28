@@ -367,13 +367,28 @@ verdade. `apps/desktop` segue sem essa validação específica (só a extensão 
 rodada); usa IPC do Electron para o mesmo tipo de dado, transporte diferente do `chrome.runtime`,
 então não há evidência de que tenha o mesmo bug — mas também não foi verificado.
 
+**Reescrita do pipeline de captura da extensão — implementada em 2026-08-28 (`apps/extension`, ver
+`CHANGELOG.md` 0.48.0):** substitui o content script/`<video>` heurístico como caminho principal por
+`chrome.tabCapture.getMediaStreamId()` + um offscreen document (`offscreen.html`/`offscreen.ts`) —
+único jeito de manter um `MediaStream`/`setInterval` vivos sob Manifest V3, já que o service worker
+é reciclado a qualquer momento de ociosidade. O upload do frame comprimido sai direto do offscreen
+document via `fetch`, nunca cruza `chrome.runtime.sendMessage` com dados binários — evita de origem
+a classe de bug do transporte por base64 corrigido no 0.38.3 (esse fix continua valendo só para o
+`VideoElementCaptureProvider`, que virou fallback, usado se `tabCapture` não estiver disponível ou
+falhar). Ganhos que vieram junto: troca automática de provider com reconexão por backoff em caso de
+stream perdido (`CaptureManager`), máquina de estados explícita, backpressure de upload (só o frame
+mais recente) e diff de frame antes de processar (pula frames praticamente parados). Ainda não
+validado contra uma sessão real de Xbox Remote Play — ver `docs/CURRENT_STATE.md`, seção "Próxima
+tarefa".
+
 **Próximos passos (não implementados agora, ficam no roadmap):**
-- **Revalidar a captura da extensão com o fix de transporte de frame, depois calibrar os limiares
-  de detecção com captura real (prioridade atual)** — `STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`,
-  `SPIKE_THRESHOLD` e os 2 de confiança seguem validados só com imagens sintéticas; a tentativa de
-  calibrar com a sessão real de 2026-07-22 não é aproveitável porque todos os frames estavam
-  corrompidos (ver acima). Sem frames reais legíveis, `GameEvent`/`CoachFeedback` não são gerados
-  mesmo com `matchId` vinculado.
+- **Validar o novo pipeline de captura da extensão (`tabCapture` + offscreen) em navegador real,
+  depois calibrar os limiares de detecção com captura real (prioridade atual)** —
+  `STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`, `SPIKE_THRESHOLD` e os 2 de confiança seguem validados só
+  com imagens sintéticas; a tentativa de calibrar com a sessão real de 2026-07-22 não foi
+  aproveitável porque todos os frames estavam corrompidos (ver acima, bug já corrigido, mas nunca
+  revalidado antes desta reescrita). Sem frames reais confirmados como legíveis com o pipeline
+  novo, `GameEvent`/`CoachFeedback` não são gerados mesmo com `matchId` vinculado.
 - Geração automática de `VideoSegment` a partir de eventos detectados (FFmpeg no `apps/desktop`
   concatenando frames do `FrameBuffer`, `BackendClient.uploadSegment`).
 - Heurísticas específicas de HUD para distinguir `paused`/`replay`/`post_match` (hoje só

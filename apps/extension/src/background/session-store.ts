@@ -1,4 +1,6 @@
-import type { AuthenticatedUser, CaptureSessionStatus } from '../shared/messages';
+import type { AuthenticatedUser, CaptureProviderId } from '../shared/messages';
+import type { CaptureState } from '../shared/capture-state-machine';
+import type { FpsTiers } from '../shared/capture-config';
 
 /**
  * chrome.storage.session (não chrome.storage.local!): fica só em memória do
@@ -19,9 +21,10 @@ interface StoredState {
   authExpiredReason: string | null;
   captureSessionId: string | null;
   captureTabId: number | null;
-  captureStatus: CaptureSessionStatus | null;
+  captureState: CaptureState | null;
+  captureProvider: CaptureProviderId | null;
   captureStartedAt: number | null;
-  captureAnalysisFps: number | null;
+  captureFps: FpsTiers | null;
   captureErrorMessage: string | null;
 }
 
@@ -31,9 +34,10 @@ const DEFAULTS: StoredState = {
   authExpiredReason: null,
   captureSessionId: null,
   captureTabId: null,
-  captureStatus: null,
+  captureState: null,
+  captureProvider: null,
   captureStartedAt: null,
-  captureAnalysisFps: null,
+  captureFps: null,
   captureErrorMessage: null,
 };
 
@@ -80,18 +84,20 @@ export const sessionStore = {
   async getCapture(): Promise<{
     sessionId: string | null;
     tabId: number | null;
-    status: CaptureSessionStatus | null;
+    state: CaptureState | null;
+    provider: CaptureProviderId | null;
     startedAt: number | null;
-    analysisFps: number | null;
+    fps: FpsTiers | null;
     errorMessage: string | null;
   }> {
     const state = await getAll();
     return {
       sessionId: state.captureSessionId,
       tabId: state.captureTabId,
-      status: state.captureStatus,
+      state: state.captureState,
+      provider: state.captureProvider,
       startedAt: state.captureStartedAt,
-      analysisFps: state.captureAnalysisFps,
+      fps: state.captureFps,
       errorMessage: state.captureErrorMessage,
     };
   },
@@ -100,29 +106,42 @@ export const sessionStore = {
     sessionId: string;
     tabId: number;
     startedAt: number;
-    analysisFps: number;
+    provider: CaptureProviderId;
+    fps: FpsTiers;
   }): Promise<void> {
     await patch({
       captureSessionId: params.sessionId,
       captureTabId: params.tabId,
-      captureStatus: 'running',
+      captureState: 'running',
+      captureProvider: params.provider,
       captureStartedAt: params.startedAt,
-      captureAnalysisFps: params.analysisFps,
+      captureFps: params.fps,
       captureErrorMessage: null,
     });
   },
 
-  async setCaptureStatus(status: CaptureSessionStatus, errorMessage: string | null = null): Promise<void> {
-    await patch({ captureStatus: status, captureErrorMessage: errorMessage });
+  // Atualiza só o estado/provider/erro de uma sessão já iniciada (pause/resume/reconnect/fail) —
+  // não mexe em sessionId/tabId/startedAt/fps, que não mudam depois do início.
+  async setCaptureRuntime(update: {
+    state: CaptureState;
+    provider: CaptureProviderId | null;
+    errorMessage: string | null;
+  }): Promise<void> {
+    await patch({
+      captureState: update.state,
+      captureProvider: update.provider,
+      captureErrorMessage: update.errorMessage,
+    });
   },
 
   async clearCapture(): Promise<void> {
     await patch({
       captureSessionId: null,
       captureTabId: null,
-      captureStatus: null,
+      captureState: null,
+      captureProvider: null,
       captureStartedAt: null,
-      captureAnalysisFps: null,
+      captureFps: null,
       captureErrorMessage: null,
     });
   },

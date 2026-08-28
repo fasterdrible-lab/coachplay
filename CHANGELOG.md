@@ -1,5 +1,159 @@
 # Changelog — Coach Play
 
+## [0.51.0] — 2026-08-27
+
+### Added
+- **Campo "time que você jogou" para o Gemini identificar o lado certo antes de apontar erros.**
+  Sem contexto nenhum, o Gemini (0.49.0) não tem como saber qual dos dois times no vídeo é o do
+  jogador que pediu a análise — risco real de atribuir um erro do adversário ao usuário.
+  - `Match.playerTeam` (schema + migration) — campo de texto livre e opcional (nome do
+    time/clube ou descrição da camisa/lado do campo)
+  - `CreateMatchDto`/`matches.service.ts` — aceita e persiste o campo
+  - `VideoProcessingWorker` → `GameAnalysisService` → `GeminiVisionService` — repassa
+    `playerTeam` até o prompt, que instrui o Gemini a usar essa informação para identificar o
+    time antes de apontar qualquer erro
+  - Frontend: campo com explicação do porquê preencher em "Nova Partida"; tela de análise
+    (`matches/[id]/page.tsx`) mostra o time informado como chip no cabeçalho
+
+## [0.50.0] — 2026-08-27
+
+### Fixed
+- **Lista de partidas e tela de análise não se atualizavam sozinhas durante o processamento.** A
+  análise roda em background (BullMQ), mas as duas telas só buscavam os dados uma vez ao montar
+  — quem ficava olhando uma partida "Aguardando"/"Processando" via o status desatualizado até dar
+  F5 manualmente. Adicionado polling de 8s enquanto o status não for terminal (`analyzed`/
+  `failed`), tanto em `/matches` (lista) quanto em `/matches/:id` (detalhe) — o polling da lista
+  não mostra spinner (`showSpinner: false`), o do detalhe reaproveita o mesmo fetch do
+  carregamento inicial (`fetchMatch`/`fetchMatches` extraídos para `useCallback`)
+
+## [0.49.0] — 2026-08-27
+
+### Added
+- **Substituída a detecção fake de erros por análise real de vídeo via Gemini** — fecha o TODO
+  documentado desde o CHANGELOG 0.47.0. `GameAnalysisService` gerava eventos/erros por posição no
+  tempo (categoria distribuída por fase da partida, severidade em rotação fixa a cada 3º evento,
+  `confidence: 0.5` fixo) sem olhar o conteúdo do vídeo — os frames de erro adicionados na 0.48.0
+  mostravam o timestamp certo, mas nunca a jogada real por trás dele. Agora o vídeo inteiro é
+  enviado ao Gemini (único dos 5 provedores de IA do projeto com ingestão nativa de vídeo — Claude
+  e GPT-4o só aceitam imagem estática), que aponta os erros de verdade com timestamp exato,
+  categoria e severidade reais.
+  - `GeminiVisionService` (novo, `apps/api/src/modules/game-analysis/gemini-vision.service.ts`) —
+    `analyzeVideo()`: sobe o vídeo via File API do Gemini (`ai.files.upload`), aguarda o
+    processamento (`waitUntilActive`, polling de 5s, timeout 5min), chama `gemini-2.5-flash` com
+    `MediaResolution.MEDIA_RESOLUTION_LOW` (mais barato, suficiente para posicionamento tático) e
+    `responseSchema` estruturado restrito ao vocabulário de `category`/`severity` que
+    `reports.service.ts` já usa para o cálculo de score — nunca deixa o modelo inventar uma
+    categoria fora do enum. Prompt instrui explicitamente a não inventar erros para preencher uma
+    quantidade ("se a partida foi bem jogada, retorne poucos erros ou nenhum")
+  - Custo estimado por token (`PRICE_IN_PER_TOKEN`/`PRICE_OUT_PER_TOKEN`, preços reais do Gemini
+    2.5 Flash) soma no mesmo `AIAnalysis.costEstimate` que a narração da IA Coach já usava — Uso &
+    IA no admin reflete o custo real sem mudança na agregação existente
+  - `GEMINI_API_KEY` segue o mesmo padrão dos outros 4 provedores (schema `AppSetting` + migration
+    + `SettingsService` + `UpdateAiProviderDto` + card na tela admin Uso & IA)
+  - `VideoCaptureService.extractFrameAt` (novo) — extrai o frame no timestamp exato retornado pelo
+    Gemini, substituindo o grid fixo de 30s (que podia errar o frame do erro por até 15s)
+  - Fallback para a heurística antiga (comportamento pré-0.49.0) só quando `GEMINI_API_KEY` não
+    está configurada (`GeminiNotConfiguredError`); qualquer outra falha do Gemini propaga — o
+    worker já tem retry (3 tentativas, backoff exponencial) e marca `failed` no esgotamento
+  - Efeito colateral esperado: "Lances da Partida" fica mais curta (só os erros reais, sem os
+    ~30 eventos fake por partida de antes) — troca deliberada, decidida com o usuário
+  - `package.json` (`apps/api`) — nova dependência `@google/genai`
+
+### Notes
+- Este fix resolve a fabricação de dados, mas não o gap estrutural do Tactical Engine documentado
+  desde a Tarefa 1 (`docs/tactical-engine-current-state.md`): o Gemini aponta erros e timestamps a
+  partir do vídeo, mas não devolve coordenadas de jogador/bola — `TacticalStateProvider` continua
+  sem nenhuma implementação real
+
+## [0.48.0] — 2026-08-27
+
+### Added
+- **Mostra o frame do erro detectado na tela de análise da partida** — primeiro passo para sair de
+  "só texto": em vez de vídeo pesado, guarda só a imagem estática (frame já extraído pelo FFmpeg)
+  do momento exato de cada erro detectado.
+  - `DetectedError.frameUrl` (schema + migration)
+  - `GameAnalysisService` copia o frame do erro para `uploads/error-frames/` antes do worker
+    apagar o diretório temporário de frames (que já acontecia ao final do processamento do
+    vídeo); falha ao copiar só deixa `frameUrl: null`, nunca derruba a análise inteira
+  - `matches/[id]/page.tsx` — `ErrorItem` mostra a miniatura do frame (clicável, abre a imagem
+    original em tamanho real)
+
+## [0.52.0] — 2026-08-28
+
+### Added
+- **`apps/extension`: reescrita do pipeline de captura — `chrome.tabCapture` + offscreen document
+  como caminho principal, o content script/`<video>` heurístico vira só fallback.** Motivação:
+  além do gap de calibração dos limiares (ainda em aberto, ver `docs/REMOTE_PLAY_CAPTURE.md`), o
+  caminho antigo dependia inteiramente de achar um `<video>` na página (heurística de
+  `video-picker.ts`, que pode quebrar se o Xbox mudar o player) e de passar cada frame por
+  `chrome.runtime.sendMessage` entre o content script (isolated world) e o service worker — o
+  mesmo mecanismo cuja falha de transporte de `ArrayBuffer` corrompeu 100% dos frames na validação
+  de 2026-07-22 (CHANGELOG 0.38.3, contornado então com base64). O novo caminho principal evita
+  essa classe de bug de origem: `chrome.tabCapture.getMediaStreamId()` captura o vídeo da aba
+  inteira sem depender de nenhum `<video>` específico da página, o stream é processado inteiramente
+  dentro de um **offscreen document** (`offscreen.html`/`offscreen.ts` — único jeito de manter um
+  `MediaStream`/`<video>`/`setInterval` vivos sob Manifest V3, já que o service worker pode ser
+  reciclado a qualquer momento de ociosidade) e o upload do JPEG comprimido sai direto do próprio
+  offscreen document via `fetch`, sem nunca cruzar `chrome.runtime.sendMessage` com dados binários.
+  - `CaptureManager` (`background/capture-manager.ts`, novo) — orquestra dois `CaptureProvider`
+    (`providers/types.ts`): `TabCaptureProvider` (principal, coordena o offscreen document a
+    partir do service worker) e `VideoElementCaptureProvider` (fallback, é o mecanismo antigo
+    reaproveitado — content script + `chrome.runtime.sendMessage` + base64). Se o provider ativo
+    falhar (`onProviderUnavailable`/`onFatalError`), tenta automaticamente o outro antes de desistir
+    da sessão (`attemptFallbackThenFail`)
+  - `CaptureSessionState` (`shared/capture-state-machine.ts`, novo) — máquina de estados explícita
+    (`idle→starting→running↔paused→reconnecting→stopping→stopped|failed`) com transições validadas
+    (`InvalidCaptureTransitionError` em vez de estado inconsistente silencioso)
+  - Reconexão com backoff (`shared/reconnect-backoff.ts`) — perda de stream (`onStreamLost`, ex.:
+    a track de vídeo termina) tenta reconectar com o mesmo provider em 500ms/1s/2s antes de cair
+    para o provider alternativo
+  - Backpressure de upload (`shared/backpressure-gate.ts`, `LatestFrameBuffer`) — buffer de um
+    único slot: se um frame novo fica pronto antes do upload do anterior terminar, o anterior é
+    descartado. O Coach Play precisa do frame mais recente, nunca de uma fila atrasada
+  - Diff de frame antes de processar (`shared/frame-diff.ts`) — assinatura barata (média estridada
+    de bytes RGBA) descarta frames "praticamente parados" antes de chegar ao estágio de
+    amostragem/compressão, reduzindo banda e CPU sem custar um diff pixel-a-pixel completo
+  - Dois níveis de FPS (`shared/capture-config.ts`, `shared/frame-sampler.ts`): `processingFps`
+    (cadência de detecção de movimento, default 5) separado de `analysisFps` (cadência real de
+    upload para análise, default 1) — a Fase 2 de `capture-sessions` já distinguia os dois
+    conceitos, mas o pipeline de captura da extensão não
+  - `CaptureMetrics` (`shared/capture-metrics.ts`) — conta frames capturados/processados/
+    enviados/descartados (por motivo: diff-gate/sampler-skip/backpressure), latência de upload
+    (última + média) e reinícios de provider; exposto no snapshot que o popup lê
+  - Reidratação após reciclagem do service worker (`CaptureManager.rehydrate()`) — o offscreen
+    document sobrevive à reciclagem do SW (MV3 mata o SW após ~30s ocioso, o offscreen document
+    não), então um restart do SW no meio de uma captura via `tabCapture` perdia todo o estado em
+    memória enquanto o pipeline offscreen seguia rodando sozinho, dessincronizado. Agora, antes do
+    primeiro handler de mensagem relacionado à captura, `CaptureManager` consulta
+    `chrome.offscreen.hasDocument()` + `queryStatus()` e reconstrói seu estado em memória a partir
+    do que encontrar rodando
+  - `manifest.json` — novas permissions `tabCapture`/`offscreen`; `package.json` (`bundle`) e
+    `scripts/copy-static.mjs` passam a empacotar/copiar `offscreen.js`/`offscreen.html`
+  - Content script (`content/index.ts`, provider de fallback): ganhou `pause`/`resume` de verdade
+    (antes só tinha start/stop — pausar reiniciava a amostragem do zero); só avisa o background no
+    primeiro miss consecutivo de `<video>` em vez de logar/mensagear a cada tick sem vídeo
+  - Popup: novos estados exibidos (`starting`/`reconnecting`/`stopping`, antes só
+    `running`/`paused`/`stopped`/`failed`), rótulo do provider ativo ("captura direta da aba" vs.
+    "modo alternativo") e controles desabilitados durante estados transitórios
+  - 7 novas suítes de teste (`capture-manager`, `capture-state-machine`, `frame-diff`,
+    `frame-dimensions`, `frame-sampler`, `backpressure-gate`, `reconnect-backoff`) — 51 testes em
+    `apps/extension` (9 suítes, era 2 suítes/8 testes antes desta mudança). Build (`tsc` + `esbuild`,
+    incluindo o novo bundle `offscreen.js`) validado sem erros
+
+### Notes
+- **Ainda não validado contra uma sessão real de Xbox Remote Play** — mesma ressalva de toda
+  mudança anterior na extensão: precisa recarregar em `chrome://extensions` e testar contra uma
+  aba real. Como o caminho principal (`tabCapture` + offscreen) nunca foi exercitado fora dos
+  testes automatizados (que rodam contra mocks de `chrome.*`), essa validação é o próximo passo
+  antes de qualquer calibração de limiares de detecção (`GameStateDetectorService`,
+  `EventDetectorService` — ver `docs/REMOTE_PLAY_CAPTURE.md`) e antes de considerar o fix do
+  0.38.3 (transporte via base64) definitivamente superado — o `VideoElementCaptureProvider` de
+  fallback ainda depende dele, então continua valendo enquanto o fallback existir
+- `apps/desktop` não ganhou o equivalente desta reescrita — continua no mecanismo antigo (IPC do
+  Electron), sem o gap de foco resolvido aqui já ser aplicável a ele (a limitação de foco do
+  Remote Play, documentada desde a 0.35.0, é estrutural ao Electron ser uma janela separada, não
+  ao transporte de frame)
+
 ## [0.47.0] — 2026-08-27
 
 ### Fixed

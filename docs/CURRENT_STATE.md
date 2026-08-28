@@ -1,7 +1,7 @@
 # Estado Atual — Coach Play
 
-**Versão:** V.0.45.0
-**Data:** 2026-08-14
+**Versão:** V.0.52.0
+**Data:** 2026-08-28
 **Fase:** Fase 7 — Produção (concluída, **em produção real em https://coachplayals.com.br**) + Módulo Administrador + Configurações + Chaves de IA + Captura via Remote Play (Fases 1 e 2, validadas manualmente, + extensão de navegador) + Tactical Engine (**Fases 1–7 concluídas — motor completo, 39/39 tarefas do plano original, ainda sem fonte real de dados nem endpoint público**)
 
 ---
@@ -185,6 +185,21 @@
 - [x] Limpa análise anterior antes de reinserir (suporte a re-análise)
 - [x] `VideoProcessingWorker` atualizado: chama `analyzeMatch` após extração + `cleanFrames` após análise
 - [x] `GameAnalysisModule` importado em `VideoCaptureModule` e `AppModule`
+
+> **Substituído por análise real de vídeo via Gemini (pós Fase 7, CHANGELOG 0.49.0)** — a
+> descrição acima (eventos por posição no tempo, severidade cíclica) era inteiramente sintética,
+> como a auditoria do Tactical Engine já tinha documentado (`docs/tactical-engine-current-state.md`).
+> `GeminiVisionService` (novo) envia o vídeo inteiro ao Gemini 2.5 Flash (único provedor de IA do
+> projeto com ingestão nativa de vídeo — Claude/GPT-4o só aceitam imagem estática), que retorna os
+> erros reais com `timestampSeconds`/`category`/`severity`/`description`/`suggestion` via
+> structured output. `VideoCaptureService.extractFrameAt` extrai o frame exato desse timestamp
+> (`DetectedError.frameUrl`, CHANGELOG 0.48.0, exibido como miniatura em `matches/[id]/page.tsx`).
+> `Match.playerTeam` (campo opcional em "Nova Partida", CHANGELOG 0.51.0) informa ao Gemini qual
+> time é o do usuário, evitando atribuir erro do adversário. Fallback para a heurística sintética
+> antiga só quando `GEMINI_API_KEY` não está configurada; qualquer outra falha do Gemini propaga
+> para o retry do worker. **Não fecha o gap do Tactical Engine**: o Gemini aponta erros/timestamps
+> a partir do vídeo, mas não devolve coordenadas de jogador/bola — `TacticalStateProvider` segue
+> sem fonte real de dados.
 
 ---
 
@@ -448,6 +463,19 @@ roubar o foco dela para pausar/encerrar a captura. Plano completo em
   de teste chegaram no banco, 1/s, com `matchId` preenchido — mas todos corrompidos (bug de
   transporte do frame via `chrome.runtime.sendMessage`, corrigido no CHANGELOG 0.38.3; ainda falta
   revalidar com o fix aplicado)
+- [x] **Reescrita do pipeline de captura: `chrome.tabCapture` + offscreen document como caminho
+  principal** (CHANGELOG 0.48.0) — o content script/`<video>` heurístico (`video-picker.ts`) vira
+  fallback (`VideoElementCaptureProvider`), só usado se `tabCapture` não estiver disponível ou
+  falhar. Caminho principal (`TabCaptureProvider` + `offscreen/stream-pipeline.ts`) evita de
+  origem a classe de bug do 0.38.3: o upload sai direto do offscreen document via `fetch`, nunca
+  cruza `chrome.runtime.sendMessage` com dados binários. Ganhos que vêm junto: `CaptureManager`
+  com troca automática de provider e reconexão com backoff em caso de stream perdido, máquina de
+  estados explícita (`idle→starting→running↔paused→reconnecting→stopping→stopped|failed`),
+  backpressure de upload (só o frame mais recente, nunca fila), diff de frame antes de processar
+  (pula frames praticamente parados) e reidratação do `CaptureManager` após o service worker ser
+  reciclado pelo Chrome (o offscreen document sobrevive à reciclagem, o estado em memória do SW
+  não). 51 testes em `apps/extension` (era 8), build validado — **ainda não validado contra uma
+  sessão real de Xbox Remote Play** (próximo passo, ver seção "Próxima tarefa" abaixo)
 
 ### Tactical Engine — Fase 1: Fundação (novo subdomínio)
 
@@ -685,19 +713,21 @@ usuário quando/se fizer sentido priorizar.
 
 ## Próxima tarefa
 
-**Revalidar a captura da extensão após o fix de transporte de frame (CHANGELOG 0.38.3)** — a
-validação de ponta a ponta desta rodada (login → escolha de partida → captura ao vivo) achou um bug
-crítico, não falta de calibração como eu tinha diagnosticado a princípio: `chrome.runtime.sendMessage`
-não transferia o `ArrayBuffer` do frame de forma confiável entre o content script e o service worker,
-então todo frame chegava na API como 15 bytes de texto `"[object Object]"`, nunca uma imagem de
-verdade — por isso `GameStateDetectorService` falhava em 100% das amostras. Corrigido codificando o
-frame em base64 antes de mandar a mensagem. Falta repetir a validação manual (extensão recarregada +
-aba do Xbox nova) para confirmar que os frames agora chegam como PNG válido e que
-`GameStateDetectorService` consegue de fato classificar `menu`/`match_running`. **Só depois disso**
-faz sentido calibrar os limiares (`STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`, `SPIKE_THRESHOLD` e os 2 de
-confiança) com dados reais — calibrar em cima de frames corrompidos não serviria de nada. Depois
-disso, o roadmap segue com: geração automática de `VideoSegment` a partir de eventos detectados, e
-as Fases 3–4 (voz, tracking, modelo próprio) — ver `docs/REMOTE_PLAY_CAPTURE.md`.
+**Validar em navegador real o novo pipeline de captura da extensão (`tabCapture` + offscreen
+document, CHANGELOG 0.48.0)** — recarregar a extensão em `chrome://extensions` e testar contra uma
+sessão real de Xbox Remote Play (login → escolha de partida → captura ao vivo), confirmando que:
+(1) o provider principal (`TabCaptureProvider`) consegue de fato obter o `streamId` da aba, criar o
+offscreen document e manter o stream vivo por uma sessão inteira; (2) os frames chegam na API como
+JPEG válido (o novo caminho principal nem depende mais do fix de base64 do 0.38.3, já que o upload
+sai direto do offscreen document); (3) o fallback (`VideoElementCaptureProvider`, mecanismo antigo)
+ainda funciona se `tabCapture` for indisponibilizado de propósito; (4) a reidratação do
+`CaptureManager` funciona de verdade após o Chrome reciclar o service worker no meio de uma captura
+longa (cenário que só dá pra provocar em uso real, não em teste automatizado). **Só depois dessa
+validação** faz sentido calibrar os limiares de `GameStateDetectorService`/`EventDetectorService`
+(`STATIC_THRESHOLD`, `ACTIVE_THRESHOLD`, `SPIKE_THRESHOLD` e os 2 de confiança) com dados reais —
+calibrar em cima de um pipeline de captura ainda não validado não seria confiável. Depois disso, o
+roadmap segue com: geração automática de `VideoSegment` a partir de eventos detectados, e as Fases
+3–4 (voz, tracking, modelo próprio) — ver `docs/REMOTE_PLAY_CAPTURE.md`.
 
 ---
 

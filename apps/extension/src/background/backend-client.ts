@@ -84,10 +84,17 @@ export class BackendClient {
     return res.json() as Promise<{ id: string; status: string }>;
   }
 
-  async uploadFrame(accessToken: string, sessionId: string, buffer: ArrayBuffer, timestampMs: number): Promise<void> {
+  async uploadFrame(
+    accessToken: string,
+    sessionId: string,
+    buffer: ArrayBuffer,
+    timestampMs: number,
+    mimeType: 'image/png' | 'image/jpeg' | 'image/webp' = 'image/png',
+  ): Promise<void> {
+    const extension = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/webp' ? 'webp' : 'png';
     const form = new FormData();
     form.append('timestampMs', String(timestampMs));
-    form.append('frame', new Blob([buffer], { type: 'image/png' }), 'frame.png');
+    form.append('frame', new Blob([buffer], { type: mimeType }), `frame.${extension}`);
 
     const res = await fetch(`${BASE_URL}/capture-sessions/${sessionId}/frames`, {
       method: 'POST',

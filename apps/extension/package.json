@@ -5,7 +5,7 @@
   "scripts": {
     "build": "npm run typecheck && npm run bundle && npm run copy-static",
     "typecheck": "tsc -p tsconfig.json",
-    "bundle": "esbuild src/background/index.ts --bundle --outfile=dist/background.js --format=iife --target=chrome110 && esbuild src/content/index.ts --bundle --outfile=dist/content.js --format=iife --target=chrome110 && esbuild src/popup/popup.ts --bundle --outfile=dist/popup.js --format=iife --target=chrome110",
+    "bundle": "esbuild src/background/index.ts --bundle --outfile=dist/background.js --format=iife --target=chrome110 && esbuild src/content/index.ts --bundle --outfile=dist/content.js --format=iife --target=chrome110 && esbuild src/popup/popup.ts --bundle --outfile=dist/popup.js --format=iife --target=chrome110 && esbuild src/offscreen/offscreen.ts --bundle --outfile=dist/offscreen.js --format=iife --target=chrome110",
     "copy-static": "node scripts/copy-static.mjs",
     "test": "jest"
   },

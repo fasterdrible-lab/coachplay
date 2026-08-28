@@ -15,8 +15,8 @@ Coach Play é um **monolito modular** com Clean Architecture e Domain-Driven Des
         ▼                                             ├── Users Module
 [Next.js Frontend — Port 3000]                         ├── Matches Module
         │ HTTP (REST)                                  ├── Video Capture Module
-        └──────────────────────────────────────────►   ├── Game Analysis Module  ──► [FFmpeg / Frames]
-                                                        ├── AI Coach Module       ──► [Claude / GPT-4o / DeepSeek]
+        └──────────────────────────────────────────►   ├── Game Analysis Module  ──► [Gemini / FFmpeg / Frames]
+                                                        ├── AI Coach Module       ──► [Claude / GPT-4o / DeepSeek / Groq]
                                                         ├── Capture Sessions Module ──► ver docs/REMOTE_PLAY_CAPTURE.md
                                                         ├── Tactical Engine Module  ──► ver seção própria abaixo
                                                         ├── Reports Module
@@ -107,17 +107,24 @@ users ─── tactical_profiles (Tactical Engine, Fase 4 — 1:1, perfil estra
    └─► Enfileira job em BullMQ (queue: video-processing)
 
 3. Worker processa o vídeo
-   ├─► FFmpeg: extrai frames a cada ~2 segundos
-   ├─► Game Analysis: analisa frames, detecta GameEvents
-   └─► Salva DetectedErrors no banco
+   ├─► FFmpeg: extrai frames a cada ~2 segundos (grid usado só pelo fallback sintético abaixo)
+   ├─► Game Analysis: GeminiVisionService envia o VÍDEO INTEIRO ao Gemini 2.5 Flash (ingestão
+   │   nativa — não re-amostra os frames do FFmpeg), que aponta os erros reais com timestamp
+   │   exato, categoria e severidade (ver seção "Game Analysis — análise real via Gemini" abaixo)
+   ├─► VideoCaptureService.extractFrameAt: extrai o frame exato do timestamp de cada erro
+   │   (DetectedError.frameUrl, miniatura exibida na tela de análise)
+   ├─► Fallback: sem GEMINI_API_KEY configurada, volta à heurística sintética antiga (eventos por
+   │   posição no tempo, sem olhar o vídeo — CHANGELOG 0.49.0)
+   └─► Salva GameEvents/DetectedErrors no banco
 
 4. Worker enfileira job de IA (queue: ai-analysis)
 
 5. AI Coach Worker
    ├─► Monta prompt com GameEvents + DetectedErrors
-   ├─► Chama Claude claude-sonnet-4-6 (multimodal)
-   ├─► Fallback: OpenAI GPT-4o se Claude falhar
-   └─► Salva AIAnalysis com resumo + custo
+   ├─► Cascata de narração: Claude claude-sonnet-4-6 (multimodal) → GPT-4o → DeepSeek → Groq
+   │   (llama-3.3-70b-versatile) — só narra em texto o que o Game Analysis já detectou, nunca
+   │   julga se algo foi erro
+   └─► Salva AIAnalysis com resumo + custo (soma o custo do Gemini gasto no passo 3)
 
 6. Reports Module gera MatchReport
    └─► Status da partida: analyzed
@@ -191,26 +198,34 @@ exclusão individual), `/admin/usage` (custo por usuário + configuração de ch
 
 ## Módulo Settings — chaves de provedores de IA
 
-Permite configurar, pelo painel admin, as chaves de API usadas pelo AI Coach (Anthropic,
-OpenAI, DeepSeek) sem depender só de variável de ambiente.
+Permite configurar, pelo painel admin, as chaves de API usadas pelo AI Coach e pelo Game Analysis
+(Anthropic, OpenAI, DeepSeek, Groq, Gemini) sem depender só de variável de ambiente.
 
 ```
 AppSetting (Prisma, linha única id="global")
-  anthropicApiKey / openaiApiKey / deepSeekApiKey  — armazenados como "iv:authTag:ciphertext"
+  anthropicApiKey / openaiApiKey / deepSeekApiKey / groqApiKey / geminiApiKey
+      — armazenados como "iv:authTag:ciphertext"
   (AES-256-GCM; chave de criptografia = sha256(JWT_SECRET), sem env var adicional)
 
 SettingsService
   getAiProviderStatus()     → status por provedor: configurado (painel|env var), preview mascarado
   updateAiProviderKeys(dto) → salva (string) ou remove (string vazia) cada chave
-  getAnthropicKey() / getOpenAiKey() / getDeepSeekKey()
+  getAnthropicKey() / getOpenAiKey() / getDeepSeekKey() / getGroqKey() / getGeminiKey()
       → painel tem prioridade; cai para a variável de ambiente correspondente se não houver nada salvo
 
-AiCoachService
+AiCoachService (narração em texto)
   → não guarda mais os clients Anthropic/OpenAI no construtor; cria um novo client por chamada,
     já com a chave resolvida via SettingsService — uma chave nova no painel vale na próxima
     análise, sem reiniciar o servidor
-  → loop sobre 3 provedores em cascata: Claude Sonnet 4.6 → GPT-4o → DeepSeek
-    (DeepSeek usa a própria SDK "openai", só trocando baseURL para api.deepseek.com)
+  → loop sobre 4 provedores em cascata: Claude Sonnet 4.6 → GPT-4o → DeepSeek → Groq
+    (llama-3.3-70b-versatile) — DeepSeek e Groq usam a própria SDK "openai", só trocando baseURL
+    (api.deepseek.com / api.groq.com/openai/v1)
+
+GeminiVisionService (Game Analysis — CHANGELOG 0.49.0)
+  → não entra na cascata de narração acima: é chamado antes dela, pelo GameAnalysisService,
+    para detectar os erros reais a partir do vídeo inteiro (ver "Fluxo de análise de partida")
+  → sem fallback entre provedores (só o Gemini entende vídeo nativamente); sem GEMINI_API_KEY
+    configurada, cai para a heurística sintética antiga em vez de tentar outro provedor de IA
 ```
 
 `GET`/`PUT /settings/ai-provider` — `@Roles('admin')`. UI em `(admin)/admin/usage`.
@@ -231,8 +246,10 @@ apps/desktop (Electron)              apps/api
   (/local/capture/*)                     POST .../{frames,segments}
                                         MatchEventsController
 apps/extension (Chrome MV3)              GET /matches/:id/events
-  content script em xbox.com/play        GET /matches/:id/feedbacks
-  <video> da aba + <canvas>       ──►
+  chrome.tabCapture + offscreen          GET /matches/:id/feedbacks
+  document (caminho principal)    ──►
+  content script em xbox.com/play
+  <video> da aba + <canvas> (fallback)
   service worker (BackendClient)
   chrome.storage.session (token)
 ```
@@ -310,7 +327,7 @@ importada diretamente pelo arquivo que precisa dela, sem injeção de dependênc
 importam tipos/funções do `tactical-engine` (`DecisionEvaluation`, `PrincipleAdherence`,
 `splitPrincipleAdherence`, `getStrategicPrinciple`, `computeFeedbackPriority`,
 `shouldDeliverLiveFeedback`) para montar um prompt e gerar texto — seguem a mesma cascata Claude
-→ GPT-4o → DeepSeek de `analyzeMatch`/`generateEventFeedback`, best-effort (retornam `null` em
+→ GPT-4o → DeepSeek → Groq de `analyzeMatch`/`generateEventFeedback`, best-effort (retornam `null` em
 vez de lançar quando todos os provedores falham). A direção da dependência é sempre `ai-coach` →
 `tactical-engine`, nunca o contrário — o motor continua sem chamar `@anthropic-ai/sdk`/`openai`
 diretamente (ver docs/tactical-engine-domain.md, seção 5). A IA só produz o texto de
@@ -417,8 +434,11 @@ deploy/backup/backup-postgres.sh      — pg_dump + gzip + rotação, agendável
 | `JWT_SECRET` | Assinar/verificar JWTs | Sim |
 | `JWT_ACCESS_EXPIRES_IN` | Expiração do access token | Sim |
 | `JWT_REFRESH_EXPIRES_IN` | Expiração do refresh token | Sim |
-| `ANTHROPIC_API_KEY` | IA principal (Claude) | Sim (Fase 4) |
-| `OPENAI_API_KEY` | IA fallback (GPT-4o) | Fase 4 |
+| `ANTHROPIC_API_KEY` | IA principal de narração (Claude) | Sim (Fase 4) |
+| `OPENAI_API_KEY` | IA fallback de narração (GPT-4o) | Fase 4 |
+| `DEEPSEEK_API_KEY` | IA fallback de narração (DeepSeek) — ou configurável via painel admin | Não |
+| `GROQ_API_KEY` | IA fallback de narração (Groq, llama-3.3-70b-versatile) — ou configurável via painel admin | Não |
+| `GEMINI_API_KEY` | Análise real de vídeo no Game Analysis (Gemini 2.5 Flash, CHANGELOG 0.49.0) — sem fallback pra outro provedor; sem ela, volta à heurística sintética antiga — ou configurável via painel admin | Não |
 | `UPLOAD_DIR` | Diretório de vídeos | Sim |
 | `MAX_VIDEO_SIZE_MB` | Limite de tamanho de upload | Sim |
 | `FRONTEND_URL` | CORS origin permitida | Sim |

@@ -54,6 +54,9 @@ button.danger { background: rgba(226, 113, 138, 0.15); color: #e2718a; }
 .status-running { background: #6fcf97; }
 .status-paused { background: #e0954a; }
 .status-failed { background: #e2718a; }
+.status-starting { background: #7c93e0; }
+.status-reconnecting { background: #e0954a; }
+.status-stopping { background: rgba(255, 255, 255, 0.35); }
 
 .actions { display: flex; gap: 8px; }
 
