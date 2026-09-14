@@ -26,7 +26,20 @@ const PLANS = [
   },
 ];
 
+const GAMES: Array<{ provider: 'EFOOTBALL'; name: string }> = [
+  { provider: 'EFOOTBALL', name: 'eFootball' },
+];
+
 async function main() {
+  for (const game of GAMES) {
+    await prisma.game.upsert({
+      where: { provider: game.provider },
+      update: { name: game.name, active: true },
+      create: game,
+    });
+    console.log(`✓ Jogo ${game.name} (${game.provider}) sincronizado`);
+  }
+
   for (const plan of PLANS) {
     const existing = await prisma.plan.findFirst({ where: { name: plan.name } });
 

@@ -131,6 +131,20 @@ enum TacticalPatternSeverity {
   HIGH
 }
 
+// Domínio Game (docs/efootball-architecture.md, Tarefa 2) — identifica de qual jogo de futebol
+// virtual um dado (Player, UserSquad, LearningPath, ...) pertence. Um valor por jogo suportado;
+// EFOOTBALL é o único ativo nesta fase. Novos jogos (EA_SPORTS_FC, UFL, ...) entram como novos
+// valores de enum + uma nova linha em Game, nunca como string solta em outra tabela.
+enum GameProvider {
+  EFOOTBALL
+}
+
+enum GameDataSourceKind {
+  official
+  community
+  manual
+}
+
 model User {
   id           String     @id @default(cuid())
   name         String
@@ -154,6 +168,7 @@ model User {
   captureSessions     CaptureSession[]
   tacticalPatterns    TacticalPattern[]
   tacticalProfile     TacticalProfile?
+  cardScans           CardScan[]
 
   @@index([email])
   @@index([status])
@@ -584,4 +599,279 @@ model TacticalProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("tactical_profiles")
+}
+
+// Ver docs/efootball-architecture.md (Tarefa 2) — raiz do domínio multi-jogo. Toda tabela nova
+// do módulo eFootball (e de futuros jogos) referencia Game.id em vez de repetir uma string solta
+// tipo game = "efootball" em cada tabela.
+model Game {
+  id        String       @id @default(cuid())
+  provider  GameProvider @unique
+  name      String
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  versions    GameVersion[]
+  dataSources GameDataSource[]
+  players     Player[]
+
+  @@map("games")
+}
+
+model GameVersion {
+  id         String    @id @default(cuid())
+  gameId     String    @map("game_id")
+  label      String
+  releasedAt DateTime? @map("released_at")
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@map("game_versions")
+}
+
+model GameDataSource {
+  id        String             @id @default(cuid())
+  gameId    String             @map("game_id")
+  name      String
+  kind      GameDataSourceKind
+  baseUrl   String?            @map("base_url")
+  active    Boolean            @default(true)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  importRuns DataImportRun[]
+
+  @@index([gameId])
+  @@map("game_data_sources")
+}
+
+enum DataImportStatus {
+  processing
+  done
+  partial
+  failed
+}
+
+enum DataImportChangeType {
+  player_created
+  card_created
+  card_updated
+  card_removed
+}
+
+// Ver docs/efootball-architecture.md (Tarefa 4) — 1 linha por execução do pipeline
+// efootball-data-provider (fetch → normalize → validate → version → import). "checksum" detecta
+// reimportações idênticas do mesmo lote; contadores resumem o resultado sem precisar reagregar
+// DataImportChange a cada consulta.
+model DataImportRun {
+  id               String           @id @default(cuid())
+  gameDataSourceId String           @map("game_data_source_id")
+  source           String
+  sourceVersion    String           @map("source_version")
+  importedAt       DateTime         @map("imported_at")
+  checksum         String
+  recordCount      Int              @map("record_count")
+  createdCount     Int              @default(0) @map("created_count")
+  updatedCount     Int              @default(0) @map("updated_count")
+  removedCount     Int              @default(0) @map("removed_count")
+  unchangedCount   Int              @default(0) @map("unchanged_count")
+  errorCount       Int              @default(0) @map("error_count")
+  status           DataImportStatus @default(processing)
+  errorDetail      Json?            @map("error_detail")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  gameDataSource GameDataSource     @relation(fields: [gameDataSourceId], references: [id], onDelete: Cascade)
+  changes        DataImportChange[]
+
+  @@index([gameDataSourceId])
+  @@index([createdAt])
+  @@map("data_import_runs")
+}
+
+// Trilha de auditoria por entidade alterada num DataImportRun — permite responder "o que mudou
+// nesta importação" sem recalcular o diff depois (registrado no momento em que já foi calculado).
+model DataImportChange {
+  id              String               @id @default(cuid())
+  dataImportRunId String               @map("data_import_run_id")
+  changeType      DataImportChangeType @map("change_type")
+  entityType      String               @map("entity_type")
+  entityId        String               @map("entity_id")
+  diff            Json?
+  createdAt       DateTime             @default(now()) @map("created_at")
+
+  dataImportRun DataImportRun @relation(fields: [dataImportRunId], references: [id], onDelete: Cascade)
+
+  @@index([dataImportRunId])
+  @@map("data_import_changes")
+}
+
+// Ver docs/efootball-architecture.md (Tarefa 3) — Player é o atleta; PlayerCard é uma versão
+// específica dele (ex.: "Kvaratskhelia - Standard" vs. "Kvaratskhelia - Epic"). NUNCA tratar
+// cartas diferentes do mesmo atleta como o mesmo objeto (Princípio 1 do módulo eFootball:
+// atributos/overall/skills vêm sempre de fonte validada, nunca de IA generativa).
+model Player {
+  id             String   @id @default(cuid())
+  gameId         String   @map("game_id")
+  externalId     String   @map("external_id")
+  name           String
+  normalizedName String   @map("normalized_name")
+  nationality    String?
+  preferredFoot  String?  @map("preferred_foot")
+  height         Int?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  game  Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  cards PlayerCard[]
+
+  @@unique([gameId, externalId])
+  @@index([gameId])
+  @@index([normalizedName])
+  @@map("players")
+}
+
+// Campos de proveniência (source/sourceVersion/validFrom/validUntil/lastVerifiedAt) seguem a
+// "Regra de dados" do módulo eFootball — nenhuma carta é assumida como válida para sempre.
+model PlayerCard {
+  id             String    @id @default(cuid())
+  playerId       String    @map("player_id")
+  externalId     String    @map("external_id")
+  cardType       String    @map("card_type")
+  version        String
+  overallBase    Int       @map("overall_base")
+  maxLevel       Int       @map("max_level")
+  position       String
+  imageUrl       String?   @map("image_url")
+  releaseDate    DateTime? @map("release_date")
+  active         Boolean   @default(true)
+  dataVersion    String    @map("data_version")
+  source         String?
+  sourceVersion  String?   @map("source_version")
+  validFrom      DateTime? @map("valid_from")
+  validUntil     DateTime? @map("valid_until")
+  lastVerifiedAt DateTime? @map("last_verified_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  player     Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  positions  PlayerPosition[]
+  stats      PlayerStat[]
+  skills     PlayerSkill[]
+  playStyles PlayerPlayStyle[]
+  versions   CardVersion[]
+  cardScans  CardScan[]
+
+  @@unique([playerId, externalId])
+  @@index([playerId])
+  @@index([position])
+  @@index([cardType])
+  @@map("player_cards")
+}
+
+// Posições adicionais além de PlayerCard.position (primária) — cobre cartas que o jogo permite
+// posicionar em mais de um papel.
+model PlayerPosition {
+  id           String  @id @default(cuid())
+  playerCardId String  @map("player_card_id")
+  position     String
+  isPrimary    Boolean @default(false) @map("is_primary")
+
+  playerCard PlayerCard @relation(fields: [playerCardId], references: [id], onDelete: Cascade)
+
+  @@unique([playerCardId, position])
+  @@index([playerCardId])
+  @@map("player_positions")
+}
+
+model PlayerStat {
+  id           String @id @default(cuid())
+  playerCardId String @map("player_card_id")
+  statKey      String @map("stat_key")
+  baseValue    Int    @map("base_value")
+  maxValue     Int    @map("max_value")
+
+  playerCard PlayerCard @relation(fields: [playerCardId], references: [id], onDelete: Cascade)
+
+  @@unique([playerCardId, statKey])
+  @@index([playerCardId])
+  @@map("player_stats")
+}
+
+model PlayerSkill {
+  id           String @id @default(cuid())
+  playerCardId String @map("player_card_id")
+  skillKey     String @map("skill_key")
+
+  playerCard PlayerCard @relation(fields: [playerCardId], references: [id], onDelete: Cascade)
+
+  @@unique([playerCardId, skillKey])
+  @@index([playerCardId])
+  @@map("player_skills")
+}
+
+model PlayerPlayStyle {
+  id           String  @id @default(cuid())
+  playerCardId String  @map("player_card_id")
+  playStyleKey String  @map("play_style_key")
+  tier         String?
+
+  playerCard PlayerCard @relation(fields: [playerCardId], references: [id], onDelete: Cascade)
+
+  @@unique([playerCardId, playStyleKey])
+  @@index([playerCardId])
+  @@map("player_play_styles")
+}
+
+// Snapshot do estado de uma PlayerCard num dado dataVersion — usado pelo pipeline de importação
+// (Tarefa 4) para detectar alteração de atributos entre importações sem perder o histórico.
+model CardVersion {
+  id            String    @id @default(cuid())
+  playerCardId  String    @map("player_card_id")
+  dataVersion   String    @map("data_version")
+  source        String?
+  sourceVersion String?   @map("source_version")
+  snapshot      Json
+  validFrom     DateTime  @map("valid_from")
+  validUntil    DateTime? @map("valid_until")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  playerCard PlayerCard @relation(fields: [playerCardId], references: [id], onDelete: Cascade)
+
+  @@index([playerCardId])
+  @@map("card_versions")
+}
+
+enum CardScanStatus {
+  AUTO_IDENTIFIED
+  NEEDS_CONFIRMATION
+  NEEDS_NEW_IMAGE
+  INVALID_IMAGE
+}
+
+// Ver docs/efootball-architecture.md (Tarefa 7) — 1 linha por tentativa de scan (mesmo com
+// resultado ruim/inválido, para medir scanner_success_rate depois, Tarefa 21). "confidenceScore"
+// e "candidateCardIds" nunca vêm de IA generativa — são o resultado do matching determinístico
+// (similaridade de texto + sinais da carta) contra Player/PlayerCard já existentes.
+model CardScan {
+  id                  String         @id @default(cuid())
+  userId              String         @map("user_id")
+  status              CardScanStatus
+  confidenceScore     Float?         @map("confidence_score")
+  matchedPlayerCardId String?        @map("matched_player_card_id")
+  candidateCardIds    Json?          @map("candidate_card_ids")
+  rawExtraction       Json?          @map("raw_extraction")
+  reviewedAt          DateTime?      @map("reviewed_at")
+  createdAt           DateTime       @default(now()) @map("created_at")
+
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchedPlayerCard PlayerCard? @relation(fields: [matchedPlayerCardId], references: [id])
+
+  @@index([userId])
+  @@index([matchedPlayerCardId])
+  @@map("card_scans")
 }

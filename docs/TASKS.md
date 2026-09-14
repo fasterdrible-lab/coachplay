@@ -229,3 +229,24 @@ feature flag desabilitada por padrão) e sem endpoint HTTP público.
 - [x] **Tarefa 37** — Documentação de API (`docs/tactical-engine-api.md`)
 - [x] **Tarefa 38** — Documentação do algoritmo de scoring (`docs/tactical-engine-scoring.md`)
 - [x] **Tarefa 39** — Interface `TacticalStateProvider` (já adiantada na Fase 1, confirmada aqui)
+
+---
+
+## Módulo eFootball (em andamento)
+
+Novo subdomínio multi-jogo, transformando o Coach Play numa plataforma de treinamento para
+futebol virtual começando pelo eFootball. Plano completo (24 tarefas), auditoria e progresso em
+[`docs/efootball-architecture.md`](efootball-architecture.md); documentação técnica por módulo em
+[`docs/efootball/`](efootball/).
+
+- [x] **Tarefa 1** — Auditoria da arquitetura atual (`docs/efootball-architecture.md`)
+- [x] **Tarefa 2** — Domínio `Game`/`GameProvider`/`GameVersion`/`GameDataSource`
+- [x] **Tarefa 3** — Banco de jogadores (`Player`/`PlayerCard` + atributos/skills/playstyles)
+- [x] **Tarefa 4** — Pipeline de importação `efootball-data-provider` (fetch→normalize→validate→version→import)
+- [x] **Tarefa 5** — Player Build Engine (motor determinístico, 8 estratégias)
+- [x] **Tarefa 6** — Comparador de builds (`POST /player-builds/compare`)
+- [x] **Tarefa 7** — Player Scanner (identificação de carta por screenshot, sem IA generativa)
+- [ ] **Tarefa 8** — Meus Jogadores (`UserPlayer`/`UserPlayerBuild`)
+- [ ] **Tarefas 9–24** — Squad Builder, Coach de Elenco, Economy Advisor, Academia, Onboarding,
+  Ask Coach, integração com Match Analysis, progresso, recomendação adaptativa, frontend,
+  segurança, controle de custo de IA, observabilidade, testes E2E, regressão, documentação final

@@ -1,5 +1,35 @@
 # Changelog — Coach Play
 
+## [0.53.0] — 2026-09-14
+
+### Added
+- **Módulo eFootball — Tarefas 1 a 7 do novo subdomínio multi-jogo.** Início da transformação do
+  Coach Play numa plataforma de treinamento para futebol virtual, começando pelo eFootball.
+  Auditoria completa e progresso em `docs/efootball-architecture.md`; documentação técnica por
+  módulo em `docs/efootball/`.
+  - **Tarefa 2** — Domínio `Game`: `Game`/`GameVersion`/`GameDataSource` (enum `GameProvider`,
+    hoje só `EFOOTBALL`), `GamesService`/`GamesController` (`GET /games`), seed idempotente
+  - **Tarefa 3** — Banco de jogadores: `Player`/`PlayerCard` (nunca funde versões diferentes de
+    uma carta) + `PlayerPosition`/`PlayerStat`/`PlayerSkill`/`PlayerPlayStyle`/`CardVersion`;
+    busca por nome/apelido via `normalizedName` (substring, sem acento, sem IA — "Kvara" encontra
+    "Khvicha Kvaratskhelia")
+  - **Tarefa 4** — Pipeline `efootball-data-provider`: fetch→normalize→validate (Zod)→version
+    (checksum sha256 estável)→import; detecta jogador novo/carta nova/atributo alterado/carta
+    removida; `DataImportRun`/`DataImportChange` como trilha de auditoria; nenhuma fonte real de
+    dados integrada ainda (só fixture, decisão de produto/legal em aberto)
+  - **Tarefa 5** — `player-build-engine`: motor 100% determinístico (sem IA no cálculo), 8
+    estratégias (`MAX_OVERALL`/`BALANCED`/`DRIBBLER`/`FINISHER`/`SPEED`/`PASSER`/`DEFENSIVE`/
+    `POSITION_OPTIMIZED`), alocação de pontos por round-robin ponderado, `roleScore` por posição
+  - **Tarefa 6** — `player-builds`: `POST /player-builds/compare` — compara 2 builds já
+    definidas, `overall` como aproximação própria do CoachPlay (nunca a fórmula oficial da
+    Konami), `advantages`/`disadvantages` gerados deterministicamente
+  - **Tarefa 7** — `player-scanner`: identifica carta a partir de screenshot — pré-processamento
+    real via `sharp`, normalização, busca e scoring por similaridade de texto (Levenshtein),
+    limiares de confiança (>0.90 automático / 0.60–0.90 confirmar / <0.60 nova imagem); nenhum
+    motor de OCR real integrado ainda (`CardImageExtractor` como costura, mesmo padrão do
+    `TacticalStateProvider`) — nunca pede pra uma IA generativa "adivinhar" a carta
+  - 143 novos testes (71 suites na API, era 50/347 testes antes da Tarefa 2)
+
 ## [0.51.0] — 2026-08-27
 
 ### Added

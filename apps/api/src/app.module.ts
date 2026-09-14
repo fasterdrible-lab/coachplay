@@ -19,6 +19,12 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { CaptureSessionsModule } from './modules/capture-sessions/capture-sessions.module';
 import { TacticalEngineModule } from './modules/tactical-engine/tactical-engine.module';
+import { GamesModule } from './modules/games/games.module';
+import { PlayersModule } from './modules/players/players.module';
+import { EfootballDataProviderModule } from './modules/efootball-data-provider/efootball-data-provider.module';
+import { PlayerBuildEngineModule } from './modules/player-build-engine/player-build-engine.module';
+import { PlayerBuildsModule } from './modules/player-builds/player-builds.module';
+import { PlayerScannerModule } from './modules/player-scanner/player-scanner.module';
 
 @Module({
   imports: [
@@ -52,6 +58,12 @@ import { TacticalEngineModule } from './modules/tactical-engine/tactical-engine.
     AdminModule,
     CaptureSessionsModule,
     TacticalEngineModule,
+    GamesModule,
+    PlayersModule,
+    EfootballDataProviderModule,
+    PlayerBuildEngineModule,
+    PlayerBuildsModule,
+    PlayerScannerModule,
   ],
   providers: [
     // ThrottlerGuard precisa vir primeiro: aplica o rate limit antes de qualquer verificação de auth
