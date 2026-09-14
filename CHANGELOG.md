@@ -1,5 +1,20 @@
 # Changelog — Coach Play
 
+## [0.54.0] — 2026-09-14
+
+### Added
+- **Módulo eFootball — Tarefa 8 (Meus Jogadores).** `UserPlayer`/`UserPlayerBuild` — "Meu
+  Elenco": jogador adiciona uma carta ao elenco (por pesquisa, scanner ou manualmente — todos
+  convergem para um `playerCardId`, a origem é só a UI, não um campo persistido), nunca duplica
+  a mesma carta (`@@unique([userId, playerCardId])`), edita nível/posição favorita/notas,
+  marca favorito, salva builds (snapshot do resultado do Player Build Engine ou de uma alocação
+  manual) e troca qual build está ativa. Filtros de `GET /user-players`: posição, tipo/raridade
+  (mapeados para `PlayerCard.cardType`, não existe campo de raridade separado), faixa de overall,
+  nível, favoritos.
+  - Segurança: `assertOwner()` (mesmo padrão de `MatchesService`) em todos os endpoints — usuário
+    nunca acessa/edita/remove elenco de outro usuário, testado explicitamente
+  - 14 novos testes (72 suites na API, era 71/490)
+
 ## [0.53.0] — 2026-09-14
 
 ### Added

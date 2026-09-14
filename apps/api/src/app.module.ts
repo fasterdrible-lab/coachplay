@@ -25,6 +25,7 @@ import { EfootballDataProviderModule } from './modules/efootball-data-provider/e
 import { PlayerBuildEngineModule } from './modules/player-build-engine/player-build-engine.module';
 import { PlayerBuildsModule } from './modules/player-builds/player-builds.module';
 import { PlayerScannerModule } from './modules/player-scanner/player-scanner.module';
+import { UserPlayersModule } from './modules/user-players/user-players.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { PlayerScannerModule } from './modules/player-scanner/player-scanner.mod
     PlayerBuildEngineModule,
     PlayerBuildsModule,
     PlayerScannerModule,
+    UserPlayersModule,
   ],
   providers: [
     // ThrottlerGuard precisa vir primeiro: aplica o rate limit antes de qualquer verificação de auth

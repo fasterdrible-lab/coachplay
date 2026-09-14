@@ -6,8 +6,9 @@
 > Fonte: leitura direta do código (`apps/api`, `apps/web`, `apps/desktop`, `apps/extension`,
 > `packages/shared`, `apps/api/prisma/schema.prisma`) + `docs/ARCHITECTURE.md` + `docs/CURRENT_STATE.md`.
 
-**Progresso (2026-09-14):** Tarefas 1–7 de 24 concluídas (auditoria, domínio Game, Players/
-PlayerCards, pipeline de importação, Player Build Engine, comparador de builds, Player Scanner).
+**Progresso (2026-09-14):** Tarefas 1–8 de 24 concluídas (auditoria, domínio Game, Players/
+PlayerCards, pipeline de importação, Player Build Engine, comparador de builds, Player Scanner,
+Meus Jogadores).
 Documentação técnica de cada módulo em [`docs/efootball/`](efootball/): 
 [`data-model.md`](efootball/data-model.md), [`player-build-engine.md`](efootball/player-build-engine.md),
 [`player-scanner.md`](efootball/player-scanner.md). Checklist completo em

@@ -169,6 +169,7 @@ model User {
   tacticalPatterns    TacticalPattern[]
   tacticalProfile     TacticalProfile?
   cardScans           CardScan[]
+  userPlayers         UserPlayer[]
 
   @@index([email])
   @@index([status])
@@ -765,6 +766,7 @@ model PlayerCard {
   playStyles PlayerPlayStyle[]
   versions   CardVersion[]
   cardScans  CardScan[]
+  userPlayers UserPlayer[]
 
   @@unique([playerId, externalId])
   @@index([playerId])
@@ -874,4 +876,52 @@ model CardScan {
   @@index([userId])
   @@index([matchedPlayerCardId])
   @@map("card_scans")
+}
+
+// Ver docs/efootball-architecture.md (Tarefa 8) — "Meu Elenco": jogadores que o usuário adicionou
+// (por pesquisa, scanner ou manualmente — todos os 3 caminhos convergem para um playerCardId, a
+// origem é só um detalhe de UI, não um campo persistido). Uma linha por (userId, playerCardId) —
+// nunca duplicado. "raridade"/"tipo" dos filtros do frontend mapeiam para PlayerCard.cardType
+// (não existe um campo de raridade separado no schema).
+model UserPlayer {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  playerCardId     String   @map("player_card_id")
+  currentLevel     Int      @map("current_level")
+  favoritePosition String?  @map("favorite_position")
+  userNotes        String?  @map("user_notes")
+  isFavorite       Boolean  @default(false) @map("is_favorite")
+  currentBuildId   String?  @map("current_build_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playerCard PlayerCard        @relation(fields: [playerCardId], references: [id])
+  builds     UserPlayerBuild[]
+
+  @@unique([userId, playerCardId])
+  @@index([userId])
+  @@map("user_players")
+}
+
+// Build salva pelo usuário para um UserPlayer — snapshot do resultado do Player Build Engine
+// (Tarefa 5) ou de uma alocação manual; nunca recalculado aqui (motor determinístico já validou
+// os limites no momento em que o resultado foi gerado, ver player-build-engine).
+model UserPlayerBuild {
+  id                   String   @id @default(cuid())
+  userPlayerId         String   @map("user_player_id")
+  strategy             String
+  position             String
+  level                Int
+  allocation           Json
+  computedAttributes   Json     @map("computed_attributes")
+  roleScore            Float    @map("role_score")
+  totalPointsUsed      Int      @map("total_points_used")
+  totalPointsAvailable Int      @map("total_points_available")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  userPlayer UserPlayer @relation(fields: [userPlayerId], references: [id], onDelete: Cascade)
+
+  @@index([userPlayerId])
+  @@map("user_player_builds")
 }
