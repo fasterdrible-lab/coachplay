@@ -170,6 +170,7 @@ model User {
   tacticalProfile     TacticalProfile?
   cardScans           CardScan[]
   userPlayers         UserPlayer[]
+  userSquads          UserSquad[]
 
   @@index([email])
   @@index([status])
@@ -616,6 +617,8 @@ model Game {
   versions    GameVersion[]
   dataSources GameDataSource[]
   players     Player[]
+  formations  Formation[]
+  userSquads  UserSquad[]
 
   @@map("games")
 }
@@ -898,6 +901,7 @@ model UserPlayer {
   user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   playerCard PlayerCard        @relation(fields: [playerCardId], references: [id])
   builds     UserPlayerBuild[]
+  squadSlots SquadPlayer[]
 
   @@unique([userId, playerCardId])
   @@index([userId])
@@ -924,4 +928,78 @@ model UserPlayerBuild {
 
   @@index([userPlayerId])
   @@map("user_player_builds")
+}
+
+// Ver docs/efootball-architecture.md (Tarefa 9) — catálogo de formações suportadas (dado próprio
+// do CoachPlay: layout padrão de futebol, não um dump de dados do eFootball). Cada
+// FormationPosition é 1 "slot" (ex.: "CB1") exigindo uma posição (mesmo vocabulário de
+// PlayerCard.position); "order" fixa a ordem determinística que o squad-builder.engine usa pra
+// alocar jogadores slot a slot. x/y normalizados (0-1), mesmo espírito de PitchCoordinate do
+// tactical-engine.
+model Formation {
+  id        String   @id @default(cuid())
+  gameId    String   @map("game_id")
+  code      String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  game       Game                @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  positions  FormationPosition[]
+  userSquads UserSquad[]
+
+  @@unique([gameId, code])
+  @@map("formations")
+}
+
+model FormationPosition {
+  id          String @id @default(cuid())
+  formationId String @map("formation_id")
+  slot        String
+  position    String
+  order       Int
+  x           Float
+  y           Float
+
+  formation Formation @relation(fields: [formationId], references: [id], onDelete: Cascade)
+
+  @@unique([formationId, slot])
+  @@index([formationId])
+  @@map("formation_positions")
+}
+
+// Elenco salvo pelo usuário — startingXI/bench calculados pelo squad-builder.engine
+// (determinístico) na hora de gerar, persistidos aqui via SquadPlayer.isStarting.
+model UserSquad {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  gameId      String   @map("game_id")
+  name        String
+  formationId String?  @map("formation_id")
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game      Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  formation Formation?    @relation(fields: [formationId], references: [id])
+  players   SquadPlayer[]
+
+  @@index([userId])
+  @@map("user_squads")
+}
+
+model SquadPlayer {
+  id           String  @id @default(cuid())
+  userSquadId  String  @map("user_squad_id")
+  userPlayerId String  @map("user_player_id")
+  slot         String?
+  isStarting   Boolean @default(false) @map("is_starting")
+
+  userSquad  UserSquad  @relation(fields: [userSquadId], references: [id], onDelete: Cascade)
+  userPlayer UserPlayer @relation(fields: [userPlayerId], references: [id], onDelete: Cascade)
+
+  @@unique([userSquadId, userPlayerId])
+  @@index([userSquadId])
+  @@map("squad_players")
 }

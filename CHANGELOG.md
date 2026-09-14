@@ -1,5 +1,26 @@
 # Changelog — Coach Play
 
+## [0.55.0] — 2026-09-14
+
+### Added
+- **Módulo eFootball — Tarefa 9 (Squad Builder).** `Formation`/`FormationPosition`/`UserSquad`/
+  `SquadPlayer` — motor determinístico que monta a escalação titular a partir do elenco
+  (`UserPlayer`) e de uma formação, sem IA. 6 formações no catálogo (`4-3-3`/`4-2-3-1`/`4-2-1-3`/
+  `4-4-2`/`3-4-3`/`3-5-2`), cada uma com exatamente 11 slots e exatamente 1 slot GK — invariante
+  do catálogo que garante estruturalmente que o motor nunca escala mais de 11 jogadores nem 2
+  goleiros simultaneamente.
+  - `positionCompatibility` reaproveita `resolvePositionGroup` do `player-build-engine`
+    (Tarefa 5): 1 = posição exata, 0.7 = mesmo grupo posicional, 0 = incompatível (nunca escala
+    um zagueiro no gol, por exemplo)
+  - `buildSquad`: slot a slot, escolhe o candidato disponível de maior score
+    (compatibilidade × overall), nunca reaproveita jogador já escalado; `weakPositions`
+    (vaga vazia ou preenchida fora de posição) e `alternatives` (próximos candidatos por slot)
+  - `POST /squad-builder/generate` (preview) e `POST /squad-builder/squads` (gera e persiste)
+  - 52 novos testes cobrindo os cenários exigidos: 11/18/30 jogadores, jogadores duplicados,
+    sem goleiro, sem lateral, excesso de atacantes, e os 2 guardas de segurança (nunca 12
+    jogadores, nunca 2 goleiros) validados contra as 6 formações
+  - 76 suites na API (era 72/504)
+
 ## [0.54.0] — 2026-09-14
 
 ### Added

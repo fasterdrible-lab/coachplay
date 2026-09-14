@@ -26,6 +26,7 @@ import { PlayerBuildEngineModule } from './modules/player-build-engine/player-bu
 import { PlayerBuildsModule } from './modules/player-builds/player-builds.module';
 import { PlayerScannerModule } from './modules/player-scanner/player-scanner.module';
 import { UserPlayersModule } from './modules/user-players/user-players.module';
+import { SquadBuilderModule } from './modules/squad-builder/squad-builder.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { UserPlayersModule } from './modules/user-players/user-players.module';
     PlayerBuildsModule,
     PlayerScannerModule,
     UserPlayersModule,
+    SquadBuilderModule,
   ],
   providers: [
     // ThrottlerGuard precisa vir primeiro: aplica o rate limit antes de qualquer verificação de auth

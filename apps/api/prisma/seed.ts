@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { FORMATIONS } from '../src/modules/squad-builder/formations.catalog';
 
 const prisma = new PrismaClient();
 
@@ -38,6 +39,25 @@ async function main() {
       create: game,
     });
     console.log(`✓ Jogo ${game.name} (${game.provider}) sincronizado`);
+  }
+
+  const efootball = await prisma.game.findUniqueOrThrow({ where: { provider: 'EFOOTBALL' } });
+
+  for (const formationDef of FORMATIONS) {
+    const formation = await prisma.formation.upsert({
+      where: { gameId_code: { gameId: efootball.id, code: formationDef.code } },
+      update: { name: formationDef.name, active: true },
+      create: { gameId: efootball.id, code: formationDef.code, name: formationDef.name },
+    });
+
+    for (const [order, slotDef] of formationDef.slots.entries()) {
+      await prisma.formationPosition.upsert({
+        where: { formationId_slot: { formationId: formation.id, slot: slotDef.slot } },
+        update: { position: slotDef.position, order, x: slotDef.x, y: slotDef.y },
+        create: { formationId: formation.id, slot: slotDef.slot, position: slotDef.position, order, x: slotDef.x, y: slotDef.y },
+      });
+    }
+    console.log(`✓ Formação ${formationDef.code} sincronizada (${formationDef.slots.length} posições)`);
   }
 
   for (const plan of PLANS) {
