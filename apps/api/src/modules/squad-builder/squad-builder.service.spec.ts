@@ -2,6 +2,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SquadBuilderService } from './squad-builder.service';
 import { PrismaService } from '../../shared/database/prisma.service';
 import { AuthUser } from '../../shared/types/auth-user.type';
+import { EfootballCoachService } from '../efootball-coach/efootball-coach.service';
 
 describe('SquadBuilderService', () => {
   const userA: AuthUser = { id: 'user-a', email: 'a@a.com', role: 'player' };
@@ -48,6 +49,7 @@ describe('SquadBuilderService', () => {
     userSquad: { create: jest.Mock; findMany: jest.Mock; findUnique: jest.Mock; delete: jest.Mock };
     squadPlayer: { createMany: jest.Mock };
   };
+  let efootballCoach: { explainSquad: jest.Mock };
   let service: SquadBuilderService;
 
   beforeEach(() => {
@@ -57,7 +59,11 @@ describe('SquadBuilderService', () => {
       userSquad: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), delete: jest.fn() },
       squadPlayer: { createMany: jest.fn() },
     };
-    service = new SquadBuilderService(prisma as unknown as PrismaService);
+    efootballCoach = { explainSquad: jest.fn() };
+    service = new SquadBuilderService(
+      prisma as unknown as PrismaService,
+      efootballCoach as unknown as EfootballCoachService,
+    );
   });
 
   describe('generate', () => {
@@ -134,6 +140,37 @@ describe('SquadBuilderService', () => {
       expect(prisma.userSquad.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: userA.id, gameId: 'game-1' } }),
       );
+    });
+
+    it('explainSquad: lança ForbiddenException quando o elenco pertence a outro usuário', async () => {
+      prisma.userSquad.findUnique.mockResolvedValue({ userId: userB.id });
+
+      await expect(service.explainSquad('squad-de-b', userA)).rejects.toThrow(ForbiddenException);
+      expect(efootballCoach.explainSquad).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('explainSquad — Tarefa 10 (Coach de Elenco)', () => {
+    it('reexecuta o motor com o elenco atual e delega a explicação ao EfootballCoachService', async () => {
+      prisma.userSquad.findUnique
+        .mockResolvedValueOnce({ userId: userA.id }) // assertOwner
+        .mockResolvedValueOnce({
+          id: 'squad-1',
+          gameId: 'game-1',
+          formation: { code: '4-4-2', name: '4-4-2', positions: formationRow.positions },
+        });
+      prisma.userPlayer.findMany.mockResolvedValue(
+        rosterRows.map((r) => ({ id: r.id, playerCard: { ...r.playerCard, player: { name: `Nome ${r.id}` } } })),
+      );
+      efootballCoach.explainSquad.mockResolvedValue({ explanation: 'Elenco equilibrado.', modelUsed: 'claude-sonnet-4-6' });
+
+      const result = await service.explainSquad('squad-1', userA);
+
+      expect(result).toEqual({ explanation: 'Elenco equilibrado.', modelUsed: 'claude-sonnet-4-6' });
+      const context = efootballCoach.explainSquad.mock.calls[0][0];
+      expect(context.formationCode).toBe('4-4-2');
+      expect(context.startingXI).toHaveLength(11);
+      expect(context.startingXI[0].playerName).toContain('Nome');
     });
   });
 });

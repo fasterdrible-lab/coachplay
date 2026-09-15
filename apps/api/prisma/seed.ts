@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { FORMATIONS } from '../src/modules/squad-builder/formations.catalog';
+import { LEARNING_PATHS } from '../src/modules/learning/learning-content.catalog';
 
 const prisma = new PrismaClient();
 
@@ -58,6 +59,42 @@ async function main() {
       });
     }
     console.log(`✓ Formação ${formationDef.code} sincronizada (${formationDef.slots.length} posições)`);
+  }
+
+  for (const [pathOrder, pathSeed] of LEARNING_PATHS.entries()) {
+    const path = await prisma.learningPath.upsert({
+      where: { gameId_level: { gameId: efootball.id, level: pathSeed.level } },
+      update: { title: pathSeed.title, description: pathSeed.description, order: pathOrder, active: true },
+      create: {
+        gameId: efootball.id,
+        level: pathSeed.level,
+        title: pathSeed.title,
+        description: pathSeed.description,
+        order: pathOrder,
+      },
+    });
+
+    for (const [moduleOrder, moduleSeed] of pathSeed.modules.entries()) {
+      const learningModule = await prisma.learningModule.upsert({
+        where: { learningPathId_order: { learningPathId: path.id, order: moduleOrder } },
+        update: { title: moduleSeed.title },
+        create: { learningPathId: path.id, title: moduleSeed.title, order: moduleOrder },
+      });
+
+      for (const [lessonOrder, lessonSeed] of moduleSeed.lessons.entries()) {
+        await prisma.lesson.upsert({
+          where: { learningModuleId_order: { learningModuleId: learningModule.id, order: lessonOrder } },
+          update: { title: lessonSeed.title, content: lessonSeed.content },
+          create: {
+            learningModuleId: learningModule.id,
+            title: lessonSeed.title,
+            content: lessonSeed.content,
+            order: lessonOrder,
+          },
+        });
+      }
+    }
+    console.log(`✓ Trilha ${pathSeed.level} sincronizada (${pathSeed.modules.length} módulos)`);
   }
 
   for (const plan of PLANS) {

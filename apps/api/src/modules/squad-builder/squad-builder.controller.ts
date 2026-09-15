@@ -34,6 +34,11 @@ export class SquadBuilderController {
     return this.squadBuilderService.findOne(id, user);
   }
 
+  @Get('squads/:id/explain')
+  explainSquad(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.squadBuilderService.explainSquad(id, user);
+  }
+
   @Delete('squads/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {

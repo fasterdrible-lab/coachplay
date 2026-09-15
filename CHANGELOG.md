@@ -1,5 +1,67 @@
 # Changelog — Coach Play
 
+## [0.58.0] — 2026-09-14
+
+### Added
+- **Módulo eFootball — Tarefa 12 (Academia CoachPlay).** `LearningPath`/`LearningModule`/
+  `Lesson`/`Exercise`/`UserLessonProgress`/`UserLearningProfile` — trilhas de aprendizado por
+  nível (`BEGINNER`/`CASUAL`/`INTERMEDIATE`/`ADVANCED`/`COMPETITIVE`), sem IA. Conteúdo inicial
+  com os 12 tópicos exigidos (Fundamentos, Passe, Finalização, Defesa, Drible, Movimentação,
+  Formações, Estilos de jogo, Progressão de jogadores, Skills, Montagem de elenco, Economia),
+  distribuídos por complexidade crescente entre as 5 trilhas — texto didático conceitual
+  próprio do CoachPlay, nunca uma alegação de mecânica exata do jogo.
+  - Desbloqueio sequencial determinístico (`learning-progress.util.ts`): 1ª aula de cada trilha
+    sempre liberada; as demais exigem a aula anterior (ordem canônica módulo→aula) concluída
+  - `completeLesson()` idempotente — concluir de novo uma aula já concluída ("repetir aula")
+    nunca duplica `UserLessonProgress`, só atualiza `completedAt`/`attempts`
+  - Todo método filtra sempre por `currentUser.id`, nunca aceita userId do cliente — progresso
+    de um usuário nunca visível/afetável por outro
+  - `GET /learning/paths`, `GET /learning/paths/:id` (com unlocked/completed por aula),
+    `GET /learning/paths/:id/progress`, `POST /learning/lessons/:id/complete`,
+    `GET`/`PATCH /learning/profile`
+  - Seed idempotente: 5 trilhas / 12 módulos / 12 aulas
+  - 16 novos testes cobrindo os 6 critérios exigidos: concluir aula, repetir aula, desbloquear
+    aula seguinte, progresso, alteração de nível, usuário diferente
+  - 82 suites na API (era 80/585)
+
+## [0.57.0] — 2026-09-14
+
+### Added
+- **Módulo eFootball — Tarefa 11 (Economy/Coins Advisor).** `Pack`/`PackTargetPlayer`/
+  `EconomyRecommendation` — motor 100% determinístico que responde "vale tentar esse pack?", sem
+  IA. Regra dura: nunca inventa probabilidade de pack — sem odds verificadas (`probability` nulo
+  em todos os alvos, ou qualquer valor fora de 0–1), a recomendação é sempre
+  `INSUFFICIENT_DATA`, nunca um palpite.
+  - `teamNeedScore`/`duplicateRisk` não dependem de odds (sempre computáveis); `expectedValue`
+    (aproximação própria do CoachPlay, overallBase-based) e `recommendationScore` exigem odds
+    válidas
+  - `coinRisk` força `NOT_RECOMMENDED` quando o usuário não tem moedas suficientes,
+    independente do resto do cálculo
+  - "needs" reaproveita o Squad Builder — novo `SquadBuilderService.getWeakPositionGroups()`
+    (reexecuta o motor da Tarefa 9 sem chamar IA); sem `userSquadId` informado, nenhuma
+    necessidade é assumida
+  - `POST /economy-advisor/evaluate`
+  - 15 novos testes cobrindo os 6 cenários exigidos: sem Coins, já possui os principais
+    jogadores, necessidade alta vs. baixa (comparativo), pack sem odds, odds inválidas
+  - 80 suites na API (era 78/570)
+
+## [0.56.0] — 2026-09-14
+
+### Added
+- **Módulo eFootball — Tarefa 10 (Coach de Elenco).** Primeira integração de IA generativa do
+  módulo eFootball — módulo novo e isolado (`efootball-coach`), não uma extensão do
+  `AiCoachService` clássico (100% EA FC hoje, não deve ser tocado). Mesma cascata de provedores
+  (Claude Sonnet 4.6 → GPT-4o → DeepSeek → Groq, best-effort, `null` se todos falharem) e reusa
+  `SettingsService` para as chaves.
+  - `SquadBuilderService.explainSquad()` reexecuta o motor determinístico (Tarefa 9) contra o
+    elenco atual, resolve nomes/composição por grupo posicional e monta um contexto 100%
+    resolvido — a IA nunca consulta o banco nem escolhe jogador, só narra o resultado já pronto
+  - `GET /squad-builder/squads/:id/explain`
+  - 14 novos testes: prompt builder (valida contexto enviado — formação/jogador/posição fraca
+    corretos, nenhuma informação fora do contexto), cascata de fallback (Claude→GPT-4o→
+    DeepSeek→Groq→null), integração com o Squad Builder
+  - 78 suites na API (era 76/556)
+
 ## [0.55.0] — 2026-09-14
 
 ### Added

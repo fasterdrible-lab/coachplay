@@ -248,6 +248,9 @@ futebol virtual começando pelo eFootball. Plano completo (24 tarefas), auditori
 - [x] **Tarefa 7** — Player Scanner (identificação de carta por screenshot, sem IA generativa)
 - [x] **Tarefa 8** — Meus Jogadores (`UserPlayer`/`UserPlayerBuild`, "Meu Elenco")
 - [x] **Tarefa 9** — Squad Builder (6 formações, motor de escalação determinístico)
-- [ ] **Tarefas 10–24** — Coach de Elenco, Economy Advisor, Academia, Onboarding, Ask Coach,
-  integração com Match Analysis, progresso, recomendação adaptativa, frontend, segurança,
-  controle de custo de IA, observabilidade, testes E2E, regressão, documentação final
+- [x] **Tarefa 10** — Coach de Elenco (`efootball-coach`, IA só explica o resultado do Squad Builder)
+- [x] **Tarefa 11** — Economy/Coins Advisor (motor determinístico, `INSUFFICIENT_DATA` sem odds verificadas)
+- [x] **Tarefa 12** — Academia CoachPlay (5 trilhas por nível, 12 módulos, desbloqueio sequencial)
+- [ ] **Tarefas 13–24** — Onboarding, Ask Coach, integração com Match Analysis, progresso,
+  recomendação adaptativa, frontend, segurança, controle de custo de IA, observabilidade,
+  testes E2E, regressão, documentação final

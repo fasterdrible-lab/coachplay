@@ -27,6 +27,9 @@ import { PlayerBuildsModule } from './modules/player-builds/player-builds.module
 import { PlayerScannerModule } from './modules/player-scanner/player-scanner.module';
 import { UserPlayersModule } from './modules/user-players/user-players.module';
 import { SquadBuilderModule } from './modules/squad-builder/squad-builder.module';
+import { EfootballCoachModule } from './modules/efootball-coach/efootball-coach.module';
+import { EconomyAdvisorModule } from './modules/economy-advisor/economy-advisor.module';
+import { LearningModule } from './modules/learning/learning.module';
 
 @Module({
   imports: [
@@ -68,6 +71,9 @@ import { SquadBuilderModule } from './modules/squad-builder/squad-builder.module
     PlayerScannerModule,
     UserPlayersModule,
     SquadBuilderModule,
+    EfootballCoachModule,
+    EconomyAdvisorModule,
+    LearningModule,
   ],
   providers: [
     // ThrottlerGuard precisa vir primeiro: aplica o rate limit antes de qualquer verificação de auth
