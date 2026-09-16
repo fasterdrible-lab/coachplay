@@ -17,4 +17,10 @@ export class AdminController {
   getUsage(@Query() query: UsageQueryDto) {
     return this.adminService.getUsage(query);
   }
+
+  // Observabilidade do módulo eFootball (Tarefa 21) — separado de GET /admin/usage (100% EA FC).
+  @Get('efootball-ai-usage')
+  getEfootballAiUsage() {
+    return this.adminService.getEfootballAiUsage();
+  }
 }

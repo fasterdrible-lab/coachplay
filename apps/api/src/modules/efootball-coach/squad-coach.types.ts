@@ -25,4 +25,6 @@ export interface SquadCoachContext {
 export interface SquadCoachExplanation {
   explanation: string;
   modelUsed: string;
+  /** USD, calculado a partir de `response.usage` do provedor que teve sucesso (Tarefa 20). */
+  costEstimate: number;
 }

@@ -174,6 +174,9 @@ model User {
   economyRecommendations EconomyRecommendation[]
   lessonProgress      UserLessonProgress[]
   learningProfile     UserLearningProfile?
+  progressSnapshots   UserProgressSnapshot[]
+  learningRecommendation LearningRecommendation?
+  aiCallLogs          AiCallLog[]
 
   @@index([email])
   @@index([status])
@@ -624,6 +627,9 @@ model Game {
   userSquads  UserSquad[]
   packs       Pack[]
   learningPaths LearningPath[]
+  progressSnapshots UserProgressSnapshot[]
+  documentationSources DocumentationSource[]
+  gameDocuments GameDocument[]
 
   @@map("games")
 }
@@ -1137,9 +1143,10 @@ model Lesson {
   content          String @db.Text
   order            Int
 
-  learningModule LearningModule        @relation(fields: [learningModuleId], references: [id], onDelete: Cascade)
-  exercises      Exercise[]
-  progress       UserLessonProgress[]
+  learningModule  LearningModule           @relation(fields: [learningModuleId], references: [id], onDelete: Cascade)
+  exercises       Exercise[]
+  progress        UserLessonProgress[]
+  recommendations LearningRecommendation[]
 
   @@unique([learningModuleId, order])
   @@index([learningModuleId])
@@ -1180,13 +1187,244 @@ model UserLessonProgress {
 }
 
 model UserLearningProfile {
-  userId    String        @id @map("user_id")
-  level     LearningLevel @default(BEGINNER)
-  goals     Json?
-  updatedAt DateTime      @updatedAt @map("updated_at")
-  createdAt DateTime      @default(now()) @map("created_at")
+  userId                String        @id @map("user_id")
+  level                 LearningLevel @default(BEGINNER)
+  goals                 Json?
+  onboardingCompletedAt DateTime?     @map("onboarding_completed_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_learning_profiles")
+}
+
+// Progresso agregado (Tarefa 16) — uma linha por (userId, gameId), sempre sobrescrita no último
+// cálculo (mesmo padrão de TacticalProfile, Tactical Engine Fase 4: sem histórico de snapshots
+// anteriores). `metrics` é o resultado já resolvido de agregar Academia/elenco/builds/squads/
+// economia/Match Analysis — nunca recalculado a partir do zero por quem lê, só por
+// ProgressService. `formulaVersion` versiona a fórmula de agregação (mesmo padrão de
+// DECISION_SCORE_CONFIG_VERSION/PLAYER_BUILD_ENGINE_CONFIG_VERSION).
+model UserProgressSnapshot {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  gameId         String   @map("game_id")
+  computedAt     DateTime @default(now()) @map("computed_at")
+  metrics        Json
+  formulaVersion String   @map("formula_version")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+  @@index([userId])
+  @@map("user_progress_snapshots")
+}
+
+// Recomendação adaptativa (Tarefa 17) — "next best action": 1 linha por usuário, sempre
+// sobrescrita quando a ação computada muda (mesmo padrão de UserProgressSnapshot/TacticalProfile
+// — sem histórico). `type` não estava no esboço original de docs/efootball-architecture.md (só
+// tinha reason/lessonId) — adicionado aqui pelo mesmo motivo que UserLearningProfile ganhou
+// onboardingCompletedAt na Tarefa 13: torna a linha auto-descritiva em vez de exigir comparar
+// texto de `reason` pra saber que ação está ativa. `lessonId` só é preenchido quando a ação é
+// "faça esta aula" — as demais ações (onboarding, elenco, squad) não apontam pra nenhuma aula.
+model LearningRecommendation {
+  id          String    @id @default(cuid())
+  userId      String    @unique @map("user_id")
+  type        String
+  reason      String    @db.Text
+  lessonId    String?   @map("lesson_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  dismissedAt DateTime? @map("dismissed_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson? @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+
+  @@index([lessonId])
+  @@map("learning_recommendations")
+}
+
+// Observabilidade de IA (Tarefa 21) — histórico consultável por chamada, fechando a lacuna que a
+// Tarefa 20 deixou em aberto (custo calculado e logado por chamada, mas nunca persistido). 1 linha
+// por chamada a `EfootballCoachService.runCascade()` (Coach de Elenco/Tarefa 10, Coach de
+// Build/Tarefa 14) — inclusive quando todos os provedores falham (`success: false`), pra medir
+// taxa de falha, não só custo de sucesso. `userId` opcional (mesmo padrão de `AuditLog`) — grava
+// best-effort, nunca deve derrubar o fluxo principal se a escrita falhar.
+model AiCallLog {
+  id           String   @id @default(cuid())
+  feature      String
+  provider     String?
+  success      Boolean
+  costEstimate Float    @default(0) @map("cost_estimate")
+  latencyMs    Int      @map("latency_ms")
+  errorMessage String?  @map("error_message") @db.Text
+  userId       String?  @map("user_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([feature])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("ai_call_logs")
+}
+
+// ─── Base Oficial de Documentação do eFootball (Tarefa 2, prompt separado do módulo eFootball
+// de 24 tarefas — ver docs/efootball/documentation-architecture.md) ────────────────────────────
+
+// Nível de confiança OPOSTO ao de sourceType: sourceType descreve A NATUREZA da fonte (quem a
+// publicou), trustLevel é a confiança OPERACIONAL atribuída a ela (curável por um admin depois,
+// ex.: uma fonte VERIFIED_COMMUNITY pode subir pra HIGH após revisão manual). Regra dura
+// (`trust-level.util.ts`): só sourceType OFFICIAL pode ter trustLevel AUTHORITATIVE — nunca uma
+// fonte comunitária/manual substitui silenciosamente a confiança de documentação oficial.
+enum DocumentationSourceType {
+  OFFICIAL
+  VERIFIED_COMMUNITY
+  COMMUNITY
+  MANUAL
+}
+
+enum DocumentationTrustLevel {
+  AUTHORITATIVE
+  HIGH
+  MEDIUM
+  LOW
+}
+
+// `domain` é sempre derivado de `url` pelo service (nunca aceito direto do cliente — client-
+// supplied domain que não bate com a URL real seria um jeito de burlar o allowlist de domínio).
+// `checksum`/`lastCheckedAt`/`lastSuccessAt`/`lastFailureAt` são escritos pelo futuro coletor
+// (Tarefa 4), não pelo CRUD desta tarefa — ficam `null` até lá.
+model DocumentationSource {
+  id            String                  @id @default(cuid())
+  gameId        String                  @map("game_id")
+  name          String
+  url           String
+  domain        String
+  sourceType    DocumentationSourceType @map("source_type")
+  language      String
+  trustLevel    DocumentationTrustLevel @map("trust_level")
+  active        Boolean                 @default(true)
+  lastCheckedAt DateTime?               @map("last_checked_at")
+  lastSuccessAt DateTime?               @map("last_success_at")
+  lastFailureAt DateTime?               @map("last_failure_at")
+  checksum      String?
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  documents GameDocument[]
+
+  @@unique([gameId, url])
+  @@index([gameId])
+  @@index([domain])
+  @@map("documentation_sources")
+}
+
+enum GameDocumentType {
+  CONTROLS
+  PLAYER_PROGRESSION
+  PLAYER_SKILLS
+  POSITION_TRAINING
+  PLAY_STYLE
+  MANAGER
+  GAMEPLAY
+  VERSION_NOTES
+  BALANCE_CHANGE
+  GENERAL_GUIDE
+}
+
+// Registro do estado ATUAL de 1 documento (Tarefa 3) — histórico de versões anteriores é a
+// Tarefa 5 (GameDocumentVersion), não esta tabela. `contentHash` é sempre derivado de
+// `normalizedContent` pelo service (`content-hash.util.ts`), nunca aceito do cliente — é o que
+// decide se um re-registro no mesmo `url` é "documento duplicado" (hash igual, só atualiza
+// `retrievedAt`) ou "conteúdo alterado" (hash diferente, atualiza os campos de conteúdo).
+model GameDocument {
+  id                String           @id @default(cuid())
+  sourceId          String           @map("source_id")
+  gameId            String           @map("game_id")
+  title             String
+  url               String
+  documentType      GameDocumentType @map("document_type")
+  language          String
+  gameVersion       String?          @map("game_version")
+  publishedAt       DateTime?        @map("published_at")
+  retrievedAt       DateTime         @map("retrieved_at")
+  contentHash       String           @map("content_hash")
+  rawContent        String           @map("raw_content") @db.Text
+  normalizedContent String           @map("normalized_content") @db.Text
+  active            Boolean          @default(true)
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  source DocumentationSource   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  game   Game                  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  versions GameDocumentVersion[]
+  changes  DocumentChange[]
+
+  @@unique([gameId, url])
+  @@index([sourceId])
+  @@index([gameId])
+  @@index([documentType])
+  @@map("game_documents")
+}
+
+// Histórico imutável de conteúdo por documento (Tarefa 5) — `GameDocument` acima só guarda o
+// ESTADO ATUAL; aqui fica cada versão que já existiu, na íntegra, pra nunca sobrescrever
+// silenciosamente documentação anterior. Só é criada uma linha quando `GameDocumentsService`
+// detecta mudança real de `contentHash` (documento idêntico não gera versão nova).
+// `changeDetected: false` só na versão 1 (não há versão anterior pra comparar — é a linha de
+// base); `true` em toda versão 2+ (representa uma alteração real detectada).
+model GameDocumentVersion {
+  id             String   @id @default(cuid())
+  documentId     String   @map("document_id")
+  versionNumber  Int      @map("version_number")
+  contentHash    String   @map("content_hash")
+  content        String   @db.Text
+  changeDetected Boolean  @map("change_detected")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  document GameDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId])
+  @@map("game_document_versions")
+}
+
+enum DocumentChangeType {
+  TEXT_ADDED
+  TEXT_REMOVED
+  TEXT_MODIFIED
+  SECTION_ADDED
+  SECTION_REMOVED
+}
+
+enum DocumentChangeReviewStatus {
+  PENDING
+  REVIEWED
+  APPROVED
+  REJECTED
+}
+
+// Uma linha por alteração detectada (Tarefa 6) entre duas GameDocumentVersion do mesmo
+// documento — não um resumo agregado. `oldVersion`/`newVersion` são `versionNumber`, não FKs
+// diretas, porque o par (oldVersion, newVersion) descreve a COMPARAÇÃO, não uma versão em si.
+// `reviewStatus` sempre nasce PENDING; a transição pra APPROVED/REJECTED é ação humana — a
+// Tarefa 8 (Revisão Humana), fora de escopo aqui. Nenhuma mudança entra em produção sozinha.
+model DocumentChange {
+  id            String                     @id @default(cuid())
+  documentId    String                     @map("document_id")
+  oldVersion    Int                        @map("old_version")
+  newVersion    Int                        @map("new_version")
+  changeType    DocumentChangeType         @map("change_type")
+  changeSummary String                     @map("change_summary") @db.Text
+  detectedAt    DateTime                   @default(now()) @map("detected_at")
+  reviewStatus  DocumentChangeReviewStatus @default(PENDING) @map("review_status")
+
+  document GameDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([reviewStatus])
+  @@map("document_changes")
 }

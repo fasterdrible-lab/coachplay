@@ -6,12 +6,15 @@
 > Fonte: leitura direta do código (`apps/api`, `apps/web`, `apps/desktop`, `apps/extension`,
 > `packages/shared`, `apps/api/prisma/schema.prisma`) + `docs/ARCHITECTURE.md` + `docs/CURRENT_STATE.md`.
 
-**Progresso (2026-09-14):** Tarefas 1–12 de 24 concluídas (auditoria, domínio Game, Players/
-PlayerCards, pipeline de importação, Player Build Engine, comparador de builds, Player Scanner,
-Meus Jogadores, Squad Builder, Coach de Elenco, Economy Advisor, Academia CoachPlay).
-Documentação técnica de cada módulo em [`docs/efootball/`](efootball/): 
-[`data-model.md`](efootball/data-model.md), [`player-build-engine.md`](efootball/player-build-engine.md),
-[`player-scanner.md`](efootball/player-scanner.md). Checklist completo em
+**Progresso (2026-09-15): roadmap original de 24 tarefas COMPLETO (24/24)** — auditoria, domínio
+Game, Players/PlayerCards, pipeline de importação, Player Build Engine, comparador de builds,
+Player Scanner, Meus Jogadores, Squad Builder, Coach de Elenco, Economy Advisor, Academia
+CoachPlay, Onboarding, Ask Coach/Intent Router, integração com Match Analysis, Progresso,
+Recomendação adaptativa, Frontend, Segurança, Controle de custo de IA, Observabilidade, Testes
+E2E, Regressão, Documentação final. **Ponto de entrada único a partir daqui:
+[`docs/efootball/README.md`](efootball/README.md)** — API HTTP completa, mapa dos 19 documentos
+técnicos por engine, modelo de dados, limitações conhecidas consolidadas e próximos passos (fora
+do roadmap original). Checklist tarefa a tarefa em
 [`docs/TASKS.md`](TASKS.md#módulo-efootball-em-andamento).
 
 ---
@@ -141,9 +144,13 @@ paralelo.
 ### 1.9 Observabilidade e custo de IA
 
 Já existe: `AIAnalysis.costEstimate` calculado a partir de tokens (preço por modelo hardcoded em
-`ai-coach.service.ts`), `AuditLog` genérico. **Não existe** hoje: uma tabela dedicada a
-log de chamada de IA por provedor/latência (a Tarefa 21 pede `llm_cost`/`llm_latency` como
-métrica — atualmente só há custo agregado em `AIAnalysis`, não histórico por chamada).
+`ai-coach.service.ts`), `AuditLog` genérico. ✅ **Tarefa 20**: o mesmo padrão de preço-por-token
+foi replicado em `EfootballCoachService` (Coach de Elenco/Build) — `costEstimate` agora é
+calculado (não só existia no módulo clássico) e devolvido em toda resposta de IA do eFootball,
+mais logado por chamada. ✅ **Tarefa 21**: `AiCallLog` (Prisma) fecha a lacuna que a Tarefa 20
+deixou em aberto — histórico consultável por chamada (`feature`/`provider`/`success`/
+`costEstimate`/`latencyMs`), agregado via `GET /admin/efootball-ai-usage` — ver
+`docs/efootball/observability.md`.
 
 ---
 
@@ -250,7 +257,12 @@ model UserLearningProfile   { userId (@id), level, goals (Json), updatedAt }
 
 // Progresso/recomendação (Tarefas 16–17)
 model UserProgressSnapshot  { id, userId, gameId, computedAt, metrics (Json), formulaVersion }
+                             // ✅ implementado na Tarefa 16 exatamente como planejado aqui —
+                             // ver docs/efootball/progress.md
 model LearningRecommendation{ id, userId, reason, lessonId?, createdAt, dismissedAt? }
+                             // ✅ implementado na Tarefa 17 — ganhou também `type`/`updatedAt`
+                             // (não previstos aqui) e `@unique(userId)`; ver
+                             // docs/efootball/recommendations.md
 ```
 
 Estratégia de `gameId`: em vez de repetir `game = "efootball"` como string solta em cada tabela
@@ -274,7 +286,9 @@ GET    /games                                   (Tarefa 2)
 GET    /players?query=&position=&cardType=       (Tarefa 3)
 GET    /players/:id
 GET    /player-cards/:id
-POST   /player-builds                            (Tarefa 5)
+POST   /player-builds/generate                   (Tarefa 5 — só implementado na Tarefa 18, ao
+                                                    construir a tela; o esboço aqui previa
+                                                    "POST /player-builds", path final divergiu)
 POST   /player-builds/compare                    (Tarefa 6)
 POST   /player-scanner/scan                       (Tarefa 7, multipart)
 GET    /user-players                              (Tarefa 8)
@@ -284,7 +298,10 @@ DELETE /user-players/:id
 GET    /user-squads                               (Tarefa 9)
 POST   /user-squads
 POST   /user-squads/:id/auto-build
-GET    /economy-advisor/evaluate?packId=          (Tarefa 11)
+GET    /economy-advisor/packs?gameId=             (Tarefa 11 — só implementado na Tarefa 18; sem
+                                                    isso o cliente não tinha como descobrir um
+                                                    packId válido)
+POST   /economy-advisor/evaluate                  (Tarefa 11)
 GET    /learning/paths                            (Tarefa 12)
 POST   /learning/lessons/:id/complete
 POST   /onboarding/efootball                      (Tarefa 13)
@@ -313,30 +330,35 @@ produto — a auditoria não assume isso, fica em aberto para a Tarefa 2.
    deve ser **aditivo e isolado**, sem tocar nesses arquivos, até uma decisão explícita de
    suportar análise de vídeo de partidas de eFootball (fora do escopo das 24 tarefas atuais, que
    cobrem elenco/build/economia/aprendizado, não visão computacional de eFootball).
-3. **Tarefa 15 (integração com Match Analysis) depende de dados que já faltam hoje.** Conforme
-   seção 1.7, não existe detecção de posição de jogador/bola em produção — só agregação por
-   categoria de erro é viável agora com dados reais; correlação fina tipo "zagueiro sai de posição
-   com frequência" continua bloqueada pela mesma lacuna documentada em
-   `docs/tactical-engine-current-state.md`.
-4. **`test:e2e` está quebrado por ausência de configuração, não é regressão desta auditoria.**
-   `apps/api/package.json` define `"test:e2e": "jest --config ./test/jest-e2e.json"`, mas o
-   diretório `apps/api/test/` nunca existiu no repositório (confirmado: `git log` sem histórico
-   para o caminho). Ou seja, o critério de aceite da Tarefa 1 ("todos os testes existentes
-   continuam passando") não pode incluir `test:e2e` porque ele nunca funcionou — ver resultado na
-   seção 7. Recomendação: não tratar isso como bloqueio; se algum teste e2e for necessário para o
-   módulo eFootball, criar `apps/api/test/jest-e2e.json` do zero (não há nada para regredir).
+3. **Tarefa 15 (integração com Match Analysis) dependia de dados que já faltam hoje — implementada
+   dentro desse limite.** Conforme seção 1.7, não existe detecção de posição de jogador/bola em
+   produção — só a agregação por categoria de erro (`attack`/`defense`/`passing`/`decision`, já
+   calculada por `ReportsService.getSummary`) era viável com dados reais, e foi isso que a
+   `LearningService.getMatchInformedRecommendation()` usa pra informar a recomendação de aula do
+   Ask Coach (`docs/efootball/match-analysis-integration.md`). Correlação fina tipo "zagueiro sai
+   de posição com frequência" continua bloqueada pela mesma lacuna documentada em
+   `docs/tactical-engine-current-state.md` — não fazia parte do escopo real desta tarefa.
+4. **`test:e2e` estava quebrado por ausência de configuração, não era regressão desta
+   auditoria.** `apps/api/package.json` define `"test:e2e": "jest --config ./test/jest-e2e.json"`,
+   mas o diretório `apps/api/test/` nunca existiu no repositório (confirmado: `git log` sem
+   histórico para o caminho). Ou seja, o critério de aceite da Tarefa 1 ("todos os testes
+   existentes continuam passando") não incluía `test:e2e` porque ele nunca funcionou — ver
+   resultado na seção 7. ✅ **Fechado na Tarefa 22**: `apps/api/test/` criado do zero (nada pra
+   regredir) — ver `docs/efootball/e2e-testing.md`.
 5. **Player Scanner (Tarefa 7) é o único ponto do módulo que processa imagem enviada pelo
    usuário.** Mesmo padrão de risco já mitigado no upload de vídeo (`multer` + `fileFilter` +
-   limite de tamanho, Tarefa 3.2 do MVP original) — reaproveitar, não reinventar. Adicionar aos
-   testes de segurança da Tarefa 19 (upload malicioso, MIME inválido, nome de arquivo malicioso),
-   já é um padrão coberto pela Tarefa 7.3 histórica (ver `docs/CURRENT_STATE.md`).
+   limite de tamanho, Tarefa 3.2 do MVP original) — reaproveitar, não reinventar. ✅ **Fechado na
+   Tarefa 19**: `imageFileFilter` usa `memoryStorage()` (nunca grava em disco com nome vindo do
+   cliente — imune a path traversal por construção, nem precisou do tratamento de nome de arquivo
+   que o upload de vídeo tem); `image.config.spec.ts` (novo) testa o filtro de MIME type, mesmo
+   padrão de `video.config.spec.ts` (Task 7.2/7.3) — ver `docs/efootball/security-review.md`.
 6. **Escopo dos 24 tarefas é grande o suficiente para justificar migrations incrementais, não uma
    única migration monolítica.** Seguir o padrão do projeto (uma migration por Tarefa/conjunto de
    tabelas relacionado, nunca squash) evita repetir o gap encontrado na Fase 7 original ("não
    existiam migrations do Prisma" — bug de deploy documentado em `docs/CURRENT_STATE.md`).
-7. **Ausência de observabilidade por chamada de IA (seção 1.9)** é pré-existente, mas a Tarefa 21
-   pede explicitamente `llm_cost`/`llm_latency` por feature — vai exigir uma tabela nova
-   (`AiCallLog` ou similar) que hoje não existe; não é regressão, é gap novo a preencher.
+7. **Ausência de observabilidade por chamada de IA (seção 1.9)** era pré-existente — a Tarefa 21
+   pedia explicitamente `llm_cost`/`llm_latency` por feature, exigindo uma tabela nova. ✅
+   **Fechado**: `AiCallLog` (exatamente esse nome) — ver `docs/efootball/observability.md`.
 
 ---
 

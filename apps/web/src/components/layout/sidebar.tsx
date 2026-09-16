@@ -15,6 +15,12 @@ import {
   FileText,
   BarChart2,
   BookOpen,
+  LayoutGrid,
+  GraduationCap,
+  Users2,
+  Shirt,
+  Coins,
+  Bot,
 } from 'lucide-react';
 import { useAuth } from '../../providers/auth-provider';
 import { cn } from '../../lib/utils';
@@ -31,6 +37,15 @@ const mainNav: NavItem[] = [
   { href: '/evolution', icon: TrendingUp, label: 'Evolução' },
   { href: '/settings', icon: Settings, label: 'Configurações' },
   { href: '/plan', icon: CreditCard, label: 'Meu Plano' },
+];
+
+const efootballNav: NavItem[] = [
+  { href: '/efootball', icon: LayoutGrid, label: 'Início eFootball' },
+  { href: '/efootball/academy', icon: GraduationCap, label: 'Academia' },
+  { href: '/efootball/players', icon: Users2, label: 'Meus Jogadores' },
+  { href: '/efootball/squads', icon: Shirt, label: 'Squad Builder' },
+  { href: '/efootball/economy', icon: Coins, label: 'Economy Advisor' },
+  { href: '/efootball/ask-coach', icon: Bot, label: 'Ask Coach' },
 ];
 
 const adminNav: NavItem[] = [
@@ -82,7 +97,7 @@ export function Sidebar() {
   };
 
   const isActive = (href: string) => {
-    if (href === '/dashboard' || href === '/admin') return pathname === href;
+    if (href === '/dashboard' || href === '/admin' || href === '/efootball') return pathname === href;
     return pathname.startsWith(href);
   };
 
@@ -106,6 +121,15 @@ export function Sidebar() {
         {mainNav.map((item) => (
           <NavLink key={item.href} item={item} active={isActive(item.href)} />
         ))}
+
+        <div className="my-3 border-t border-white/[0.08]" />
+        <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-gold-bright/85">
+          eFootball
+        </p>
+        {efootballNav.map((item) => (
+          <NavLink key={item.href} item={item} active={isActive(item.href)} />
+        ))}
+
         <HelpLink />
 
         {user?.role === 'admin' && (

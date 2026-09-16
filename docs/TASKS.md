@@ -251,6 +251,70 @@ futebol virtual começando pelo eFootball. Plano completo (24 tarefas), auditori
 - [x] **Tarefa 10** — Coach de Elenco (`efootball-coach`, IA só explica o resultado do Squad Builder)
 - [x] **Tarefa 11** — Economy/Coins Advisor (motor determinístico, `INSUFFICIENT_DATA` sem odds verificadas)
 - [x] **Tarefa 12** — Academia CoachPlay (5 trilhas por nível, 12 módulos, desbloqueio sequencial)
-- [ ] **Tarefas 13–24** — Onboarding, Ask Coach, integração com Match Analysis, progresso,
-  recomendação adaptativa, frontend, segurança, controle de custo de IA, observabilidade,
-  testes E2E, regressão, documentação final
+- [x] **Tarefa 13** — Onboarding (`POST /onboarding/efootball`, aponta trilha inicial pelo nível)
+- [x] **Tarefa 14** — Ask Coach / Intent Router (`POST /ask-coach`, 5 intents + UNKNOWN)
+- [x] **Tarefa 15** — Integração com Match Analysis (recomendação de aula informada pela
+  categoria de erro mais frequente das partidas reais já analisadas — só agregação, ver risco 3)
+- [x] **Tarefa 16** — Progresso (`GET /progress/me`, agrega Academia/elenco/builds/squads/
+  economia/Match Analysis em `UserProgressSnapshot`)
+- [x] **Tarefa 17** — Recomendação adaptativa (`GET /recommendations/next-best-action`, cadeia
+  de prioridade sobre onboarding/elenco/squad/Match Analysis/Academia; `POST .../:id/dismiss`)
+- [x] **Tarefa 18** — Frontend (10 rotas em `(dashboard)/efootball/`, `Sidebar` estendida; UI
+  enxuta cobrindo os 15 engines de backend das Tarefas 2–17 — ver `docs/efootball/frontend.md`)
+- [x] **Tarefa 19** — Segurança (auditoria transversal das Tarefas 2–18: rate limit em 3
+  endpoints caros/de IA, cap de tamanho no prompt do Ask Coach, validação de `gameId` em 2
+  endpoints, teste do filtro de upload do Player Scanner — ver `docs/efootball/security-review.md`)
+- [x] **Tarefa 20** — Controle de custo de IA (`costEstimate` real, por token, em toda chamada de
+  IA do módulo — Coach de Elenco/Build e Ask Coach; antes descartado inteiramente — ver
+  `docs/efootball/ai-cost-control.md`)
+- [x] **Tarefa 21** — Observabilidade (`AiCallLog`, histórico consultável por chamada de IA —
+  `llm_cost`/`llm_latency` — + `GET /admin/efootball-ai-usage`; ver `docs/efootball/observability.md`)
+- [x] **Tarefa 22** — Testes E2E (`apps/api/test/` criado do zero — nunca existira, `test:e2e`
+  sempre falhava por ausência de configuração; 8 passos reais encadeando módulos de verdade —
+  ver `docs/efootball/e2e-testing.md`)
+- [x] **Tarefa 23** — Regressão (4 builds + 4 suítes de teste do monorepo inteiro, 756 testes,
+  zero regressão no pipeline clássico de EA FC — ver `docs/efootball/regression.md`)
+- [x] **Tarefa 24** — Documentação final (`docs/efootball/README.md` — API completa, mapa dos
+  19 docs técnicos, modelo de dados, limitações consolidadas, próximos passos)
+
+---
+
+## Base Oficial de Documentação do eFootball (em andamento — novo prompt, 32 tarefas)
+
+Subdomínio **separado** do módulo eFootball acima (já fechado, 24/24) — documentação oficial
+versionada e auditável (fonte → documento → versão → regra → validação → engine → AI Coach),
+nunca dado inventado por LLM. Auditoria pré-implementação em
+[`docs/efootball/documentation-architecture.md`](efootball/documentation-architecture.md).
+
+- [x] **Tarefa 1** — Auditoria da arquitetura existente (achados: `GameVersion`≈`GameRelease`
+  pedida, `GameDataSource`/`DataImportRun` são o padrão a seguir mas não a reaproveitar
+  diretamente, sem cache/sanitização de HTML/proteção SSRF hoje)
+- [x] **Tarefa 2** — Modelo de fonte (`DocumentationSource`, `POST/GET/PATCH /documentation-sources`,
+  `@Roles('admin')`; SSRF bloqueado por design + allowlist de domínio deny-by-default via
+  `DOCUMENTATION_SOURCE_ALLOWED_DOMAINS`; `trustLevel: AUTHORITATIVE` exclusivo de `sourceType:
+  OFFICIAL` — ver `docs/efootball/documentation-sources.md`)
+- [x] **Tarefa 3** — Registro de documentos (`GameDocument`, upsert por `(gameId, url)`,
+  `contentHash` sha256 derivado no servidor, `POST/GET/PATCH /game-documents`, `@Roles('admin')`
+  — ver [`docs/efootball/game-documents.md`](efootball/game-documents.md))
+- [x] **Tarefa 4** — Coletor de documentação (`documentation-ingestion`: fetch com
+  timeout/retry/redirect seguro/limite de tamanho + sanitização real via `sanitize-html` +
+  normalização; delega hash/comparação/armazenamento pro `GameDocumentsService` da Tarefa 3 —
+  documento idêntico não cria versão desnecessária; `POST /documentation-ingestion`,
+  `@Roles('admin')` — ver [`docs/efootball/documentation-ingestion.md`](efootball/documentation-ingestion.md))
+- [x] **Tarefa 5** — Versionamento de documentos (`GameDocumentVersion`, histórico imutável;
+  `GameDocumentsService.registerDocument` grava v1 no cadastro e vN+1 a cada alteração real
+  detectada — documento idêntico não gera versão desnecessária; `GET /game-documents/:id/versions`
+  — ver [`docs/efootball/game-document-versions.md`](efootball/game-document-versions.md))
+- [x] **Tarefa 6** — Detector de alterações (`DocumentationDiffService`, diff por LCS
+  linha-a-linha + palavra-a-palavra, `DocumentChange` PENDING por mudança detectada; corrige
+  defeito retroativo em `htmlToPlainText` da Tarefa 4 — blocos HTML agora viram linhas separadas,
+  pré-requisito pra detecção de seção funcionar; `POST/GET /documentation-diff` — ver
+  [`docs/efootball/documentation-diff.md`](efootball/documentation-diff.md))
+- [ ] **Tarefas 7–32** — `GameRule`, revisão admin,
+  matriz de confiança, conflitos, data health, painel admin, `GameRelease`→`GameVersion`, regras
+  temporais, API de conhecimento, integração com Player Build Engine/Ask Coach, resposta com
+  fonte, Academia, gerador assistido, monitoramento, alertas, auditoria, cache, segurança do
+  coletor, fallback, observabilidade, e2e, teste de alteração real, regressão, documentação
+  técnica, painel Data Health
+
+**Roadmap original de 24 tarefas do módulo eFootball: 24/24 concluídas.**

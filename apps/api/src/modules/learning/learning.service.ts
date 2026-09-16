@@ -4,6 +4,14 @@ import { PrismaService } from '../../shared/database/prisma.service';
 import { AuthUser } from '../../shared/types/auth-user.type';
 import { computePathProgress, flattenLessons, isLessonUnlocked, ModuleWithLessons } from './learning-progress.util';
 import { UpdateLearningProfileDto } from './dto/update-learning-profile.dto';
+import { mapWorstCategoryToModuleTitle } from './match-analysis-recommendation.util';
+
+export interface MatchInformedRecommendation {
+  matchCategory: string;
+  moduleTitle: string;
+  lessonId: string;
+  lessonTitle: string;
+}
 
 const MODULES_WITH_LESSONS_INCLUDE = {
   orderBy: { order: 'asc' as const },
@@ -84,7 +92,7 @@ export class LearningService {
 
   async getProfile(currentUser: AuthUser) {
     const profile = await this.prisma.userLearningProfile.findUnique({ where: { userId: currentUser.id } });
-    return profile ?? { userId: currentUser.id, level: LearningLevel.BEGINNER, goals: null };
+    return profile ?? { userId: currentUser.id, level: LearningLevel.BEGINNER, goals: null, onboardingCompletedAt: null };
   }
 
   /** "alteração de nível" (Tarefa 12). */
@@ -94,6 +102,51 @@ export class LearningService {
       create: { userId: currentUser.id, level: dto.level, goals: dto.goals },
       update: { level: dto.level, ...(dto.goals !== undefined && { goals: dto.goals }) },
     });
+  }
+
+  /**
+   * Integração com Match Analysis (Tarefa 15) — dado o `worstCategory` já agregado pelo
+   * `ReportsService.getSummary` (módulo `reports`, partidas EA FC reais), recomenda a primeira
+   * aula do módulo da Academia mais relacionado a essa categoria. Retorna `null` sem inventar
+   * nada quando: não há categoria (usuário sem partida analisada ainda), a categoria não mapeia
+   * pra nenhum módulo, o jogo não tem esse módulo cadastrado, ou a aula ainda está bloqueada —
+   * nunca fura a ordem sequencial de desbloqueio já garantida pela Tarefa 12.
+   */
+  async getMatchInformedRecommendation(
+    worstCategory: string | null,
+    gameId: string,
+    currentUser: AuthUser,
+  ): Promise<MatchInformedRecommendation | null> {
+    if (!worstCategory) return null;
+
+    const moduleTitle = mapWorstCategoryToModuleTitle(worstCategory);
+    if (!moduleTitle) return null;
+
+    const learningModule = await this.prisma.learningModule.findFirst({
+      where: { title: moduleTitle, learningPath: { gameId, active: true } },
+      select: {
+        id: true,
+        title: true,
+        learningPathId: true,
+        lessons: { orderBy: { order: 'asc' }, take: 1, select: { id: true, title: true } },
+      },
+    });
+    const firstLesson = learningModule?.lessons[0];
+    if (!learningModule || !firstLesson) return null;
+
+    const flat = await this.flattenPathLessons(learningModule.learningPathId);
+    const completedIds = await this.completedLessonIds(currentUser.id, flat.map((l) => l.id));
+
+    if (completedIds.has(firstLesson.id) || !isLessonUnlocked(flat, firstLesson.id, completedIds)) {
+      return null;
+    }
+
+    return {
+      matchCategory: worstCategory,
+      moduleTitle: learningModule.title,
+      lessonId: firstLesson.id,
+      lessonTitle: firstLesson.title,
+    };
   }
 
   private async flattenPathLessons(pathId: string) {

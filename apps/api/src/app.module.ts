@@ -30,6 +30,14 @@ import { SquadBuilderModule } from './modules/squad-builder/squad-builder.module
 import { EfootballCoachModule } from './modules/efootball-coach/efootball-coach.module';
 import { EconomyAdvisorModule } from './modules/economy-advisor/economy-advisor.module';
 import { LearningModule } from './modules/learning/learning.module';
+import { OnboardingModule } from './modules/onboarding/onboarding.module';
+import { AskCoachModule } from './modules/ask-coach/ask-coach.module';
+import { ProgressModule } from './modules/progress/progress.module';
+import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { DocumentationSourcesModule } from './modules/documentation-sources/documentation-sources.module';
+import { GameDocumentsModule } from './modules/game-documents/game-documents.module';
+import { DocumentationIngestionModule } from './modules/documentation-ingestion/documentation-ingestion.module';
+import { DocumentationDiffModule } from './modules/documentation-diff/documentation-diff.module';
 
 @Module({
   imports: [
@@ -74,6 +82,14 @@ import { LearningModule } from './modules/learning/learning.module';
     EfootballCoachModule,
     EconomyAdvisorModule,
     LearningModule,
+    OnboardingModule,
+    AskCoachModule,
+    ProgressModule,
+    RecommendationsModule,
+    DocumentationSourcesModule,
+    GameDocumentsModule,
+    DocumentationIngestionModule,
+    DocumentationDiffModule,
   ],
   providers: [
     // ThrottlerGuard precisa vir primeiro: aplica o rate limit antes de qualquer verificação de auth

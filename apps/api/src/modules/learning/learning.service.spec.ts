@@ -25,6 +25,7 @@ describe('LearningService', () => {
 
   let prisma: {
     learningPath: { findUnique: jest.Mock; findMany: jest.Mock };
+    learningModule: { findFirst: jest.Mock };
     lesson: { findUnique: jest.Mock };
     userLessonProgress: { findUnique: jest.Mock; findMany: jest.Mock; upsert: jest.Mock };
     userLearningProfile: { findUnique: jest.Mock; upsert: jest.Mock };
@@ -39,6 +40,9 @@ describe('LearningService', () => {
       learningPath: {
         findUnique: jest.fn().mockResolvedValue(pathWithModules),
         findMany: jest.fn(),
+      },
+      learningModule: {
+        findFirst: jest.fn().mockResolvedValue(null),
       },
       lesson: {
         findUnique: jest.fn().mockImplementation(({ where: { id } }) =>
@@ -127,5 +131,88 @@ describe('LearningService', () => {
     prisma.lesson.findUnique.mockResolvedValue(null);
 
     await expect(service.completeLesson('lesson-x', userA)).rejects.toThrow(NotFoundException);
+  });
+
+  describe('getMatchInformedRecommendation (Tarefa 15 — integração com Match Analysis)', () => {
+    it('sem categoria (usuário sem partida analisada), retorna null sem consultar o banco', async () => {
+      const result = await service.getMatchInformedRecommendation(null, 'game-1', userA);
+
+      expect(result).toBeNull();
+      expect(prisma.learningModule.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('categoria sem módulo mapeado, retorna null sem consultar o banco', async () => {
+      const result = await service.getMatchInformedRecommendation('categoria-desconhecida', 'game-1', userA);
+
+      expect(result).toBeNull();
+      expect(prisma.learningModule.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('categoria mapeada mas sem módulo cadastrado nesse jogo, retorna null', async () => {
+      prisma.learningModule.findFirst.mockResolvedValue(null);
+
+      const result = await service.getMatchInformedRecommendation('passing', 'game-1', userA);
+
+      expect(result).toBeNull();
+    });
+
+    it('primeira aula do módulo correspondente já desbloqueada e não concluída: recomenda', async () => {
+      prisma.learningModule.findFirst.mockResolvedValue({
+        id: 'm1',
+        title: 'Passe',
+        learningPathId: 'path-1',
+        lessons: [{ id: 'l1', title: 'Escolhendo o passe certo' }],
+      });
+
+      const result = await service.getMatchInformedRecommendation('passing', 'game-1', userA);
+
+      expect(result).toEqual({
+        matchCategory: 'passing',
+        moduleTitle: 'Passe',
+        lessonId: 'l1',
+        lessonTitle: 'Escolhendo o passe certo',
+      });
+    });
+
+    it('primeira aula do módulo correspondente já concluída: não recomenda de novo', async () => {
+      await service.completeLesson('l1', userA);
+      prisma.learningModule.findFirst.mockResolvedValue({
+        id: 'm1',
+        title: 'Passe',
+        learningPathId: 'path-1',
+        lessons: [{ id: 'l1', title: 'Escolhendo o passe certo' }],
+      });
+
+      const result = await service.getMatchInformedRecommendation('passing', 'game-1', userA);
+
+      expect(result).toBeNull();
+    });
+
+    it('primeira aula do módulo correspondente ainda bloqueada: nunca fura a ordem sequencial', async () => {
+      prisma.learningModule.findFirst.mockResolvedValue({
+        id: 'm2',
+        title: 'Finalização',
+        learningPathId: 'path-1',
+        lessons: [{ id: 'l2', title: 'Escolhendo o momento de finalizar' }],
+      });
+
+      const result = await service.getMatchInformedRecommendation('attack', 'game-1', userA);
+
+      expect(result).toBeNull();
+    });
+
+    it('usuário diferente: recomendação de A não é afetada pelo progresso de B', async () => {
+      await service.completeLesson('l1', userB);
+      prisma.learningModule.findFirst.mockResolvedValue({
+        id: 'm1',
+        title: 'Passe',
+        learningPathId: 'path-1',
+        lessons: [{ id: 'l1', title: 'Escolhendo o passe certo' }],
+      });
+
+      const result = await service.getMatchInformedRecommendation('passing', 'game-1', userA);
+
+      expect(result).not.toBeNull();
+    });
   });
 });

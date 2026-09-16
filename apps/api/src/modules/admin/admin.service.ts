@@ -119,4 +119,60 @@ export class AdminService {
 
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
+
+  /**
+   * Observabilidade do módulo eFootball (Tarefa 21) — histórico consultável de `AiCallLog`,
+   * separado do `getUsage()` acima (100% EA FC, `AIAnalysis`/`Match`) por serem tabelas e domínios
+   * diferentes; nenhuma alteração no endpoint clássico. Agregado geral + quebra por `feature`
+   * (`squad_coach`/`build_coach`) + as 20 chamadas mais recentes, mesmo formato de "overview +
+   * lista recente" já usado em `getOverview()`.
+   */
+  async getEfootballAiUsage() {
+    const [totalAgg, byFeature, recentCalls] = await Promise.all([
+      this.prisma.aiCallLog.aggregate({
+        _sum: { costEstimate: true },
+        _avg: { latencyMs: true },
+        _count: true,
+      }),
+      this.prisma.aiCallLog.groupBy({
+        by: ['feature'],
+        _sum: { costEstimate: true },
+        _avg: { latencyMs: true },
+        _count: true,
+      }),
+      this.prisma.aiCallLog.findMany({
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          feature: true,
+          provider: true,
+          success: true,
+          costEstimate: true,
+          latencyMs: true,
+          errorMessage: true,
+          createdAt: true,
+          user: { select: { name: true, email: true } },
+        },
+      }),
+    ]);
+
+    const totalCalls = totalAgg._count;
+    const successCalls = await this.prisma.aiCallLog.count({ where: { success: true } });
+
+    return {
+      totalCalls,
+      successCalls,
+      failureRate: totalCalls > 0 ? (totalCalls - successCalls) / totalCalls : 0,
+      totalCost: Number(totalAgg._sum.costEstimate ?? 0),
+      avgLatencyMs: Number(totalAgg._avg.latencyMs ?? 0),
+      byFeature: byFeature.map((f) => ({
+        feature: f.feature,
+        calls: f._count,
+        totalCost: Number(f._sum.costEstimate ?? 0),
+        avgLatencyMs: Number(f._avg.latencyMs ?? 0),
+      })),
+      recentCalls,
+    };
+  }
 }

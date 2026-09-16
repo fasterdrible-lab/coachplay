@@ -1,9 +1,11 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PlayerBuildsService } from './player-builds.service';
 import { PrismaService } from '../../shared/database/prisma.service';
+import { PlayerBuildEngineService } from '../player-build-engine/player-build-engine.service';
 
 describe('PlayerBuildsService', () => {
   let prisma: { playerCard: { findUnique: jest.Mock } };
+  let playerBuildEngine: { generateBuild: jest.Mock };
   let service: PlayerBuildsService;
 
   const card = {
@@ -19,7 +21,27 @@ describe('PlayerBuildsService', () => {
 
   beforeEach(() => {
     prisma = { playerCard: { findUnique: jest.fn() } };
-    service = new PlayerBuildsService(prisma as unknown as PrismaService);
+    playerBuildEngine = { generateBuild: jest.fn() };
+    service = new PlayerBuildsService(
+      prisma as unknown as PrismaService,
+      playerBuildEngine as unknown as PlayerBuildEngineService,
+    );
+  });
+
+  it('generate: delega diretamente ao Player Build Engine, sem persistir nada', async () => {
+    const params = {
+      playerCardId: 'card-1',
+      level: 30,
+      position: 'CF',
+      strategy: 'FINISHER' as const,
+      availableProgressionPoints: 10,
+    };
+    playerBuildEngine.generateBuild.mockResolvedValue({ roleScore: 90 });
+
+    const result = await service.generate(params);
+
+    expect(playerBuildEngine.generateBuild).toHaveBeenCalledWith(params);
+    expect(result).toEqual({ roleScore: 90 });
   });
 
   const dto = (overrides: any = {}) => ({

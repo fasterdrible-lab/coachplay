@@ -18,7 +18,7 @@ describe('EconomyAdvisorService', () => {
   };
 
   let prisma: {
-    pack: { findUnique: jest.Mock };
+    pack: { findUnique: jest.Mock; findMany: jest.Mock };
     userPlayer: { findMany: jest.Mock };
     economyRecommendation: { create: jest.Mock };
   };
@@ -27,7 +27,7 @@ describe('EconomyAdvisorService', () => {
 
   beforeEach(() => {
     prisma = {
-      pack: { findUnique: jest.fn() },
+      pack: { findUnique: jest.fn(), findMany: jest.fn() },
       userPlayer: { findMany: jest.fn().mockResolvedValue([]) },
       economyRecommendation: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -36,6 +36,17 @@ describe('EconomyAdvisorService', () => {
       prisma as unknown as PrismaService,
       squadBuilder as unknown as SquadBuilderService,
     );
+  });
+
+  it('listPacks: lista só os packs ativos do jogo, campos básicos pro seletor do frontend', async () => {
+    prisma.pack.findMany.mockResolvedValue([{ id: 'pack-1', name: 'Pack A', cost: 500, currency: 'coins', oddsVerifiedAt: null }]);
+
+    const result = await service.listPacks('game-1');
+
+    expect(prisma.pack.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { gameId: 'game-1', active: true } }),
+    );
+    expect(result).toEqual([{ id: 'pack-1', name: 'Pack A', cost: 500, currency: 'coins', oddsVerifiedAt: null }]);
   });
 
   it('lança NotFoundException para pack inexistente', async () => {

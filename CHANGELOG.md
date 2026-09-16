@@ -1,5 +1,491 @@
 # Changelog — Coach Play
 
+## [0.75.0] — 2026-09-15
+
+### Added
+- **Base Oficial de Documentação do eFootball — Tarefa 6 (Detector de alterações).**
+  - `DocumentChange` (Prisma, migration `20260915220000_add_document_change`) — uma linha por
+    mudança detectada entre duas `GameDocumentVersion`, sempre `reviewStatus: PENDING` ao nascer
+  - Novo módulo `documentation-diff`: `content-diff.util.ts` (puro, sem I/O) faz diff por LCS —
+    primeiro linha-a-linha (cada linha = 1 "seção"), depois palavra-a-palavra dentro de linhas
+    pareadas por similaridade — classificando em `TEXT_ADDED`/`TEXT_REMOVED`/`TEXT_MODIFIED`/
+    `SECTION_ADDED`/`SECTION_REMOVED`
+  - **Todas as fixtures pedidas pela tarefa confirmadas em teste**: nenhuma alteração (zero
+    mudanças), uma frase alterada, uma seção removida, nova regra, e a mudança de número exigida
+    explicitamente ("5 habilidades" → "6 habilidades" detectada como `TEXT_MODIFIED`)
+  - `POST/GET /documentation-diff` — `@Roles('admin')`, disparo manual; nada aprova/rejeita
+    automaticamente (isso é ação humana, Tarefa 8)
+
+### Fixed
+- **`htmlToPlainText()` (Tarefa 4) não separava elementos de bloco** —
+  `sanitizeHtml(html, {allowedTags:[]})` concatenava `<p>A</p><p>B</p>` em `"AB"`, sem nenhum
+  separador, o que teria tornado a detecção de seção da Tarefa 6 impossível em conteúdo real.
+  Corrigido: quebra de linha inserida após cada elemento de bloco (`p`/`div`/`h1`–`h6`/`li`/`tr`/
+  `blockquote`/`section`/`article`) e após `<br>`, antes de remover as tags — cada bloco vira
+  exatamente 1 linha. Descoberto e corrigido durante a Tarefa 6, não uma tarefa própria.
+  - 20 novos testes (11 `content-diff.util` + 7 `documentation-diff.service` + 2 correção do
+    normalizador em `html-sanitizer.util`) — **103 suites / 796 testes na API (era 101 suites /
+    776 testes)**
+
+## [0.74.0] — 2026-09-15
+
+### Added
+- **Base Oficial de Documentação do eFootball — Tarefa 5 (Versionamento de documentos).**
+  - `GameDocumentVersion` (Prisma, migration `20260915210000_add_game_document_version`) —
+    histórico **imutável** por documento; `GameDocument` (Tarefa 3) continua guardando só o
+    estado atual
+  - Novo módulo `game-document-versions` (`GameDocumentVersionsService`) — `recordVersion()` numera
+    sequencialmente por `documentId` (`@@unique([documentId, versionNumber])` trava no banco),
+    `findAllForDocument()`/`findVersion()` pra consulta
+  - `GameDocumentsService.registerDocument()` (Tarefa 3) passa a gravar uma versão automaticamente
+    sempre que `changed: true`: v1 com `changeDetected:false` no cadastro inicial, vN+1 com
+    `changeDetected:true` a cada alteração real — **documento idêntico (mesmo `contentHash`)
+    continua sem gravar versão nova**, confirmado em teste de cenário completo (A → A repetido →
+    B → C: histórico final tem exatamente 3 versões, não 4)
+  - `GET /game-documents/:id/versions` e `GET /game-documents/:id/versions/:versionNumber` —
+    `@Roles('admin')`, 404 explícito tanto pro documento quanto pra versão inexistente
+  - 8 novos testes (7 em `game-document-versions.service.spec.ts` + 1 cenário end-to-end em
+    `game-documents.service.spec.ts` com Prisma falso stateful, reproduzindo literalmente a
+    sequência pedida pela tarefa) — **101 suites / 776 testes na API (era 100 suites / 768
+    testes)**
+
+## [0.73.0] — 2026-09-15
+
+### Added
+- **Base Oficial de Documentação do eFootball — Tarefa 4 (Coletor de documentação).**
+  - Novo módulo `documentation-ingestion`: `DocumentFetcherService` (fetch) + `html-sanitizer.util`
+    (sanitize/normalize) + `DocumentationIngestionService` (orquestração), delegando
+    hash/comparação/armazenamento inteiramente ao `GameDocumentsService` da Tarefa 3 — sem duplicar
+    aquela lógica
+  - `DocumentFetcherService`: timeout (`AbortController`), retry limitado só pra falhas
+    transitórias (rede/timeout/5xx — nunca 4xx), user-agent configurável, limite de tamanho
+    aplicado tanto por `Content-Length` quanto durante o streaming do corpo (nunca confia só no
+    header), redirecionamentos seguidos manualmente com **SSRF + allowlist de domínio
+    revalidados em cada salto** (não só na URL inicial), limite de redirecionamentos contra loop
+  - Reaproveita `checkSourceUrlSafety`/`isDomainAllowed`/`parseAllowedDomains` da Tarefa 2 —
+    nenhuma allowlist paralela
+  - Sanitização real via `sanitize-html` (parser HTML de verdade, não regex) — pinado em
+    `2.12.1` porque a partir da `2.13` a dependência `htmlparser2` virou ESM-only e quebra o
+    `ts-jest` do projeto
+  - `DocumentationIngestionService.ingest()`: HTML vazio ou que normaliza pra texto vazio lança
+    `BadRequestException` explícita antes de tocar o banco — nunca cria um `GameDocument` fantasma
+  - **Resultado exigido pela tarefa confirmado em teste**: documento idêntico (mesmo
+    `contentHash`) não cria versão desnecessária — `registerDocument()` retorna `changed:false`
+  - `POST /documentation-ingestion` — `@Roles('admin')`, disparo manual (agendamento automático é
+    a Tarefa 21, fora de escopo aqui)
+  - Novas env vars com defaults sensatos: `DOCUMENTATION_FETCH_TIMEOUT_MS`,
+    `DOCUMENTATION_FETCH_MAX_RETRIES`, `DOCUMENTATION_FETCH_RETRY_DELAY_MS`,
+    `DOCUMENTATION_FETCH_MAX_REDIRECTS`, `DOCUMENTATION_FETCH_MAX_BYTES`,
+    `DOCUMENTATION_FETCH_USER_AGENT`
+  - 30 novos testes (11 sanitização, 13 fetcher — cobrindo todos os cenários mockados pedidos:
+    200/404/500/timeout/redirect/redirect loop/HTML vazio/conteúdo enorme —, 6 orquestração —
+    HTML alterado/HTML idêntico entre eles) — **100 suites / 768 testes na API (era 97 suites /
+    738 testes)**
+
+## [0.72.0] — 2026-09-15
+
+### Added
+- **Base Oficial de Documentação do eFootball — Tarefa 3 (Registro de documentos).**
+  - `GameDocument` (Prisma, migration `20260915200000_add_game_document`) — representa o **estado
+    atual** de cada documento capturado por `DocumentationSource`; histórico de versões fica para
+    a Tarefa 5, propositalmente fora de escopo aqui
+  - `registerDocument()` faz **upsert por `(gameId, url)`** em vez de distinguir criar/atualizar
+    como operações separadas — o mesmo consumidor (hoje manual; Tarefa 4 em diante, o coletor
+    automático) sempre chama o mesmo método; o serviço decide `isNew`/`changed` sozinho
+  - `contentHash` (sha256 do `normalizedContent`) **sempre derivado no servidor**, nunca aceito do
+    cliente — mesmo princípio do `domain` derivado de `url` na Tarefa 2
+  - Reaproveita `DocumentationSourcesService.findOne` da Tarefa 2 e valida que a fonte pertence ao
+    mesmo jogo do documento — impede mistura entre jogos
+  - `POST`/`GET`/`PATCH /game-documents` — `@Roles('admin')`, mesmo padrão dos módulos anteriores
+  - 14 novos testes (`content-hash.util.spec.ts`, `game-documents.service.spec.ts` — documento
+    válido, documento duplicado, mesma URL com conteúdo alterado, documento sem source, source de
+    outro jogo, tipo inválido, versão nova, jogo inexistente, filtros de `findAll`) — **97 suites
+    / 738 testes na API (era 95 suites / 724 testes)**
+  - Regressão completa: `tsc --noEmit` limpo, `nest build` limpo, `test:e2e` 8/8 PASS (módulo
+    eFootball clássico intacto) — ver `docs/efootball/game-documents.md`
+
+## [0.71.0] — 2026-09-15
+
+### Added
+- **Base Oficial de Documentação do eFootball — Tarefa 2 (Modelo de fonte).** Primeiro módulo de
+  código do novo prompt (32 tarefas, separado do módulo eFootball de 24 já fechado — ver
+  `docs/efootball/documentation-architecture.md`, Tarefa 1).
+  - `DocumentationSource` (Prisma, migration `20260915190000_add_documentation_source`) —
+    ancorada em `Game.id`; `domain` sempre derivado de `url` no service, nunca aceito direto do
+    cliente (fecharia um jeito de burlar o allowlist)
+  - `POST`/`GET`/`PATCH /documentation-sources` — `@Roles('admin')`, mesmo padrão de
+    `SettingsController`
+  - **Núcleo de proteção contra SSRF já nesta tarefa** (não esperando a Tarefa 25, conforme
+    recomendado na auditoria): `url-safety.util.ts` bloqueia por design qualquer protocolo que
+    não seja `https:`, hosts de loopback, qualquer IPv4 privado/reservado (RFC 1918 + link-local,
+    incluindo `169.254.169.254` — alvo clássico de SSRF pra metadata de nuvem) e **qualquer
+    literal de IP**, público ou privado — fonte de documentação sempre por nome de domínio
+  - **Allowlist de domínio deny-by-default**: `DOCUMENTATION_SOURCE_ALLOWED_DOMAINS` (nova env
+    var, `.env.example`) — sem configuração, nenhum domínio é autorizado, mesmo que passe na
+    checagem de SSRF. Este código nunca assume/adivinha um domínio real da Konami ou de qualquer
+    fonte comunitária (mesmo risco 1 do audit original do módulo eFootball, agora aplicado a
+    documentação em vez de carta)
+  - `trustLevel: AUTHORITATIVE` exclusivo de `sourceType: OFFICIAL` — `trust-level.util.ts`
+    lança erro explícito (nunca corrige silenciosamente) se qualquer outro tipo tentar, seja na
+    criação ou numa atualização posterior
+  - **Decisão de não-reaproveitamento registrada**: `GameDataSource` (existente, usado pelo
+    pipeline de Player/PlayerCard) não foi estendido pra virar `DocumentationSource` — enum
+    fechado incompatível, sem os campos exigidos, amarrado a um relacionamento de registros
+    estruturados. `GameVersion` (existente, nunca usado) será reaproveitado como `GameRelease`
+    quando a Tarefa 13 deste prompt chegar, em vez de duplicar — decisão já registrada na Tarefa 1
+  - 42 novos testes (`url-safety.util.spec.ts`, `allowed-domains.util.spec.ts`,
+    `trust-level.util.spec.ts`, `documentation-sources.service.spec.ts`) — 95 suites na API
+    (era 91/682)
+
+## [0.70.0] — 2026-09-15
+
+### Added
+- **Módulo eFootball — Tarefa 24 (Documentação final). Fecha o roadmap original de 24 tarefas
+  (24/24 concluídas).** Novo [`docs/efootball/README.md`](../docs/efootball/README.md) — ponto
+  de entrada único do módulo, substituindo a necessidade de garimpar 19 documentos técnicos
+  espalhados + o audit doc pra entender o estado atual:
+  - **Referência de API completa** — todos os ~35 endpoints HTTP do módulo (Tarefas 2–21),
+    agrupados por domínio, com método/rota/descrição/rate limit onde se aplica — primeira vez
+    que existe uma lista única e definitiva (a "visão consolidada por tarefa" da seção 5 do
+    audit doc foi escrita progressivamente ao longo de 24 tarefas e nunca fechada como
+    referência limpa)
+  - **Mapa dos 19 documentos técnicos** (`docs/efootball/*.md`) — 1 linha por documento, o que
+    cada um cobre
+  - **Modelo de dados consolidado** — todas as tabelas Prisma novas, por tarefa; confirmação de
+    que nenhuma coluna do MVP original (EA FC) foi alterada ou removida (só 3 campos de relação
+    inversa aditivos em `model User`, exigidos pelo Prisma para as FKs das tabelas novas)
+  - **Limitações conhecidas consolidadas numa tabela única** — antes espalhadas em rodapés de
+    "fora de escopo" em 8 documentos diferentes (fonte de dados de jogadores, seed de packs,
+    gap de posição/bola, cap de gasto de IA, retenção de `AiCallLog`, cobertura e2e parcial,
+    migrations não validadas contra Postgres real, frontend enxuto)
+  - **Próximos passos fora do roadmap original** — mesmo padrão de fechamento já usado pelo
+    Tactical Engine ao final de suas 39 tarefas: decisões de produto novas, não tarefas já
+    planejadas
+
+## [0.69.0] — 2026-09-15
+
+### Notes
+- **Módulo eFootball — Tarefa 23 (Regressão).** Nenhuma mudança de código — validação de ponta a
+  ponta do monorepo inteiro após as Tarefas 1–22, confirmando "aditivo e isolado" na prática, não
+  só na intenção documentada.
+  - **Os 4 alvos de build do monorepo, limpos**: `build:api` (`prisma generate` + `nest build`),
+    `build:web` (Next 14, lint + `tsc` + 25 rotas geradas), `build:desktop` (Electron,
+    `tsc` + esbuild), `build:extension` (Chrome MV3, `tsc` + 4 bundles esbuild)
+  - **Os 4 alvos de teste do monorepo, verdes**: `test:api` (91 suites / 682 testes),
+    `test:e2e` (1 suite / 8 testes, novo desde a Tarefa 22), `test:desktop` (2 suites / 15
+    testes), `test:extension` (9 suites / 51 testes) — **756 testes no total, zero falhas**
+  - **Confirmado via `git diff --stat` contra `ai-coach`/`game-analysis`/`capture-sessions`/
+    `tactical-engine`/`matches`/`auth`/`plans`/`reports` (backend) e `matches`/`dashboard`/
+    `evolution` (frontend) + `apps/desktop`/`apps/extension` inteiros: zero linhas alteradas**
+    em qualquer um — nenhuma das 22 tarefas anteriores tocou o pipeline clássico de EA FC ou os
+    outros clientes do monorepo, exatamente como `docs/efootball-architecture.md` (risco 2)
+    exigia desde a auditoria original
+  - **Cadeia de migrations verificada**: 5 migrations novas desta sessão
+    (`add_onboarding_completed_at` → `add_user_progress_snapshot` → `add_learning_recommendation`
+    → `add_ai_call_log`, mais a já existente `add_learning` como base), timestamps sequenciais
+    sem colisão, `prisma generate` validou o schema a cada uma
+  - **Limitação que segue sem solução nesta tarefa** (mesma de toda a sessão): sem Docker
+    disponível neste ambiente, nenhuma migration foi de fato aplicada contra um Postgres real —
+    a validação ficou em `prisma generate` (sintaxe do schema) + os fakes de `PrismaService` nos
+    testes (semântica dos services). Ver `docs/efootball/regression.md` pra detalhamento completo
+
+## [0.68.0] — 2026-09-15
+
+### Added / Fixed
+- **Módulo eFootball — Tarefa 22 (Testes E2E).** Fecha o risco 4 documentado desde a Tarefa 1 da
+  auditoria original (`docs/efootball-architecture.md`): `apps/api/test/` nunca existiu no
+  repositório — `npm run test:e2e` sempre falhou por ausência de configuração, não por
+  regressão. Criado do zero.
+  - `apps/api/test/jest-e2e.json` (padrão do template oficial do Nest CLI)
+  - `apps/api/test/efootball-recommendation-flow.e2e-spec.ts` — diferente dos
+    `*.controller.integration.spec.ts` já existentes (1 módulo por vez, service inteiro
+    mockado), este sobe uma aplicação Nest real encadeando **módulos reais** (`OnboardingModule`
+    → `RecommendationsModule`, que importa `ProgressModule`, que importa `LearningModule` +
+    `ReportsModule` + `GamesModule` — todos com as classes de serviço verdadeiras, unidas pelo
+    container de DI de verdade). Só `PrismaService` (fake em memória fiel ao schema) e
+    `ReportsService` (Match Analysis, fora do escopo deste fluxo) são substituídos — prova que a
+    fiação real entre módulos funciona, algo que teste unitário com `new XService(...)` não
+    verifica
+  - 8 passos, todos via HTTP real (`fetch` contra `app.listen(0)`, mesmo padrão de
+    `games.controller.integration.spec.ts`): usuário novo → `COMPLETE_ONBOARDING` →
+    `POST /onboarding/efootball` → `ADD_PLAYERS` → `BUILD_SQUAD` → `DO_LESSON` (aula real vinda
+    da Academia, cross-módulo) → dispensar → confirma `dismissed: true` persistido → conclui a
+    aula → confirma `ALL_CAUGHT_UP` com `dismissedAt` limpo automaticamente
+  - **Achado ao rodar o primeiro `nest build` depois de `apps/api/test/` passar a existir**:
+    sem `tsconfig.build.json`, o build de produção sempre compilou TODO `*.spec.ts` de `src/`
+    pra dentro de `dist/` (91 arquivos, confirmado — condição pré-existente desde a Fase 1,
+    nunca notada porque `dist/src/main.js` funcionava normalmente apesar do lixo extra); o novo
+    `test/*.e2e-spec.ts` teria se somado a isso. Corrigido com `apps/api/tsconfig.build.json`
+    (conteúdo padrão do template oficial do Nest CLI — `exclude: ["node_modules", "test", "dist",
+    "**/*spec.ts"]`) — `dist/` agora contém só código de produção
+  - Validado: `npm run test:e2e` (8/8), suíte unitária completa sem regressão (91 suites/682
+    testes), `nest build` limpo (`dist/` sem nenhum `.spec.js`/`.e2e-spec.js`)
+
+## [0.67.0] — 2026-09-15
+
+### Added
+- **Módulo eFootball — Tarefa 21 (Observabilidade).** Fecha a lacuna explicitamente deixada em
+  aberto pela Tarefa 20: custo calculado e logado por chamada, mas nunca persistido — sem
+  histórico consultável. `AiCallLog` (Prisma, migration `20260915180000_add_ai_call_log`) — 1
+  linha por chamada a `EfootballCoachService.runCascade()` (Coach de Elenco/Tarefa 10, Coach de
+  Build/Tarefa 14), sucesso OU falha total, com `feature`/`provider`/`success`/`costEstimate`/
+  `latencyMs`/`errorMessage`/`userId`.
+  - Gravação best-effort (mesmo padrão de `AuditLogsService.log()`) — uma falha ao gravar
+    `AiCallLog` nunca derruba a resposta ao usuário, só loga um aviso
+  - `latencyMs` mede o tempo total da cascata (do prompt pronto até resposta ou desistência), não
+    só do provedor vencedor — é o que importa pra performance percebida pelo usuário
+  - `explainSquad()`/`explainBuild()` agora recebem `userId` explicitamente (antes não sabiam
+    quem fez a chamada) — `SquadBuilderService.explainSquad` e `AskCoachService.handleBuildRecommendation`
+    (que ganhou `currentUser` como parâmetro novo) passam `currentUser.id` adiante
+  - `GET /admin/efootball-ai-usage` (novo, `@Roles('admin')`) — agregado geral (total de
+    chamadas, taxa de falha, custo total, latência média) + quebra por `feature` + as 20 chamadas
+    mais recentes. Endpoint separado de `GET /admin/usage` (100% EA FC, `AIAnalysis`/`Match`) —
+    nenhuma mudança no endpoint clássico
+  - Frontend: nova seção "eFootball — Custo de IA" em `(admin)/admin/usage/page.tsx`, ao lado da
+    seção clássica já existente — completa o ciclo observabilidade de ponta a ponta (log →
+    persistência → agregação → visibilidade admin)
+  - 6 novos testes (`efootball-coach.service.spec.ts` +4, `admin.service.spec.ts` +2, incluindo
+    "falha ao gravar AiCallLog nunca derruba a resposta") — 91 suites na API (era 91/676, sem
+    suíte nova, só testes a mais)
+
+## [0.66.0] — 2026-09-15
+
+### Added
+- **Módulo eFootball — Tarefa 20 (Controle de custo de IA).** `EfootballCoachService`
+  (único ponto do módulo que chama IA generativa — Coach de Elenco/Tarefa 10, Coach de
+  Build/Tarefa 14) descartava `response.usage` inteiramente: nenhuma chamada de IA do módulo
+  eFootball tinha custo calculado, ao contrário do `AiCoachService` clássico
+  (`AIAnalysis.costEstimate`, calculado desde a Fase 4 original). Fechado usando exatamente o
+  mesmo padrão de preço-por-token já validado em `ai-coach.service.ts` (duplicado, não
+  compartilhado — mesmo isolamento entre os dois módulos de IA documentado desde a Tarefa 10).
+  - `SquadCoachExplanation`/`BuildCoachExplanation` ganharam `costEstimate: number` (USD) — a
+    cascata de provedores (Claude → GPT-4o → DeepSeek → Groq) agora lê `input_tokens`/
+    `output_tokens` (Anthropic) ou `prompt_tokens`/`completion_tokens` (SDK `openai`, reusado por
+    GPT-4o/DeepSeek/Groq) e calcula o custo só da chamada que teve sucesso — tentativas que
+    falharam antes de qualquer resposta nunca são cobradas (mesmo princípio do módulo clássico)
+  - `AskCoachAnswer` (Tarefa 14) ganhou `costEstimate: number`, sempre `0` nas 3 intents
+    determinísticas (`PLAYER_SEARCH`/`ECONOMY_ADVICE`/`LEARNING_RECOMMENDATION`) e em `UNKNOWN` —
+    só `BUILD_RECOMMENDATION`/`SQUAD_ADVICE` podem devolver um valor > 0, herdado da explicação de
+    IA quando ela tem sucesso
+  - Log estruturado por chamada (`this.logger.log`, custo + contagem de tokens de entrada/saída)
+    — visibilidade imediata via log antes de qualquer tabela dedicada existir (essa parte fica
+    pra Tarefa 21 — observabilidade, que já estava reservada pra um `AiCallLog`
+    `llm_cost`/`llm_latency` por chamada, histórico que este changelog não tenta antecipar)
+  - Frontend: `formatAiCost()` (novo, `lib/efootball.ts`) exibido ao lado do `modelUsed` já
+    mostrado em `squads/[id]/page.tsx` (Coach de Elenco) e `ask-coach/page.tsx` (chat) — visão
+    "controle" no sentido literal: o usuário agora vê o custo estimado de cada resposta de IA
+  - 1 novo teste (custo zero quando o provedor não devolve `usage`) + assertions de custo
+    adicionadas aos testes existentes de cascata/fallback — 91 suites na API (era 91/675, sem
+    suíte nova, só 1 teste a mais)
+
+## [0.65.0] — 2026-09-15
+
+### Added / Fixed
+- **Módulo eFootball — Tarefa 19 (Segurança).** Transversal, como já documentado ("aplicar em
+  cada tarefa, não só ao final") — auditoria dos 15 módulos das Tarefas 2–18 (controllers, DTOs,
+  ownership, upload). Achados e correções:
+  - **Sem rate limit dedicado em 3 endpoints caros** (2 chamam IA generativa, 1 é
+    CPU-pesado) — mesmo padrão já usado em `POST /matches/:id/video` (Task 7.3, "endpoint caro
+    (I/O de disco + fila)"), nunca replicado pro módulo eFootball. Adicionado `@Throttle`:
+    `POST /ask-coach` (15/min — Tarefa 14, 2 das 5 intents chamam IA), `GET
+    /squad-builder/squads/:id/explain` (10/min — Tarefa 10, sempre chama IA), `POST
+    /player-scanner/scan` (10/min — Tarefa 7, sharp + OCR/matching por chamada)
+  - **`AskCoachDto.question` sem limite de tamanho** — texto livre do usuário vai direto pro
+    prompt de IA em 2 das 5 intents, sem nenhum cap antes disso. Adicionado `@MaxLength(500)`
+  - **`gameId` como query param solto (`@Query('gameId') gameId: string`), sem validação, em 2
+    lugares** (`GET /squad-builder/formations`, `GET /squad-builder/squads`,
+    `GET /economy-advisor/packs`) — omitir o parâmetro fazia o Prisma ignorar o filtro
+    (`gameId: undefined`) e devolver dados de TODOS os jogos em vez de rejeitar a requisição. Sem
+    impacto real hoje (só existe 1 `Game`), mas vira vazamento de dados entre jogos assim que um
+    segundo jogo existir. Corrigido com DTOs dedicados (`GameIdQueryDto`, `ListPacksQueryDto`,
+    `@IsNotEmpty()`) — omitir `gameId` agora é HTTP 400
+  - **Player Scanner (Tarefa 7) nunca teve teste dedicado pro filtro de upload** — risco 5 já
+    apontado na auditoria (`docs/efootball-architecture.md`): "mesmo padrão de risco já mitigado
+    no upload de vídeo... reaproveitar, não reinventar". `videoFileFilter` tem
+    `video.config.spec.ts` desde a Task 7.2; `imageFileFilter` não tinha equivalente. Novo
+    `image.config.spec.ts` — aceita PNG/JPEG/WEBP, rejeita formatos inválidos/perigosos
+    (`video/mp4`, `application/pdf`, `text/html`, `image/svg+xml` — SVG pode carregar script
+    embutido, `application/octet-stream`)
+  - **Auditoria confirmou, sem necessidade de mudança**: ownership (IDOR) já corretamente
+    implementado e testado nos 3 únicos recursos do módulo endereçados por id e pertencentes a um
+    usuário (`UserPlayer`/Tarefa 8, `UserSquad`/Tarefa 9, `LearningRecommendation`/Tarefa 17 —
+    todos com `ForbiddenException` + teste "usuário diferente"); mass-assignment bloqueado
+    globalmente (`ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })`, já existente
+    desde a Fase 1, cobre todos os DTOs novos); nenhuma query SQL crua em módulo nenhum (só
+    Prisma parametrizado); upload do Player Scanner usa `memoryStorage()` (nunca grava em disco
+    com nome vindo do cliente — estruturalmente imune a path traversal, mais seguro que o upload
+    de vídeo baseado em `diskStorage`); nenhuma resposta expõe campo sensível (`passwordHash` ou
+    equivalente)
+  - 8 novos testes (`image.config.spec.ts`) — 91 suites na API (era 90/667)
+
+## [0.64.0] — 2026-09-15
+
+### Added
+- **Módulo eFootball — Tarefa 18 (Frontend).** Telas reais pra todos os 15 engines de backend das
+  Tarefas 2–17, seguindo a folga já documentada em `docs/efootball-architecture.md` ("Tarefa 18
+  pode começar em paralelo... mas cada tela real depende do backend correspondente" — agora todo
+  o backend existe). Escopo combinado com o usuário: fluxo completo, UI funcional/enxuta
+  reaproveitando os componentes `Button`/`Input` e o padrão visual Dark Luxury UI já existentes,
+  sem investir em polimento visual nesta rodada.
+  - `Sidebar` (`components/layout/sidebar.tsx`) ganhou a seção "eFootball" (`efootballNav`) —
+    estende o array `mainNav` existente, não um sistema de navegação paralelo, exatamente como
+    `docs/efootball-architecture.md` (seção 1.8) instruía
+  - **10 rotas novas** em `(dashboard)/efootball/`: `page.tsx` (dashboard — Progresso + Recomendação
+    adaptativa + atalhos), `onboarding/`, `academy/` + `academy/[pathId]/` (trilhas e aulas),
+    `players/` + `players/[id]/` (Meus Jogadores, busca por nome, Player Scanner via upload,
+    Player Build Engine), `squads/` + `squads/[id]/` (Squad Builder + Coach de Elenco),
+    `economy/` (Economy Advisor), `ask-coach/` (chat-lite com Ask Coach)
+  - **2 gaps de backend encontrados e corrigidos ao construir as telas** (nenhum dos dois muda
+    comportamento de nenhuma Tarefa já fechada, só preenche uma lacuna que impedia a tela
+    correspondente de existir):
+    - `PlayerBuildEngineService.generateBuild()` (Tarefa 5) nunca tinha endpoint HTTP — só
+      `POST /player-builds/compare` (Tarefa 6) existia, que compara 2 builds já definidas mas não
+      gera nenhuma. Adicionado `POST /player-builds/generate` — pré-visualização pura (não
+      persiste nada); o usuário decide se salva via `POST /user-players/:id/builds` (Tarefa 8)
+    - Não existia nenhuma leitura de `Pack` (Tarefa 11) — o cliente não tinha como descobrir um
+      `packId` válido pra `POST /economy-advisor/evaluate`. Adicionado
+      `GET /economy-advisor/packs?gameId=` (leitura simples, sem lógica do motor)
+  - 2 novos testes (`player-builds.service.spec.ts`, `economy-advisor.service.spec.ts`) — 90
+    suites na API (era 90/665, sem suíte nova, só 2 testes a mais)
+  - Validação: `npm run build:web` (Next 14, lint + `tsc` + geração estática das 25 rotas) sem
+    erros; servidor de dev subido e as 10 rotas novas testadas via `curl` (todas retornam 307 —
+    mesmo redirecionamento de sessão do resto do `(dashboard)`, nenhum erro 500). **Sem Docker
+    disponível nesta sessão** (Postgres/Redis não sobem), não foi possível validar as telas
+    autenticadas contra dados reais — falta correr o fluxo completo (login → onboarding → adicionar
+    jogador → montar elenco → avaliar pack → Ask Coach) num navegador de verdade contra a API viva,
+    igual foi feito manualmente em rodadas anteriores (ex.: Capture Sessions, CHANGELOG 0.34.0/0.38.x)
+
+## [0.63.0] — 2026-09-15
+
+### Added
+- **Módulo eFootball — Tarefa 17 (Recomendação adaptativa).** `GET /recommendations/next-best-action`
+  — cadeia de prioridade 100% determinística (`computeNextBestAction`, `next-best-action.util.ts`)
+  que decide a UMA próxima ação mais valiosa pro usuário fazer, reaproveitando sinais de todos os
+  engines anteriores em vez de recalculá-los: onboarding pendente (Tarefa 13) → elenco vazio
+  (Tarefa 8) → nenhum squad salvo (Tarefa 9) → aula informada pelo Match Analysis (Tarefa 15) →
+  próxima aula sequencial da Academia (Tarefa 12) → "em dia".
+  - `RecommendationsService` reaproveita `ProgressService.getMyProgress()` (Tarefa 16) pros 3
+    primeiros sinais — nunca reconta o que o Progresso já contou — e só consulta a Academia
+    (`LearningService.getMatchInformedRecommendation`/`listPaths`/`getPath`) quando as 3
+    condições de maior prioridade já estão satisfeitas, evitando consulta cujo resultado a cadeia
+    descartaria de qualquer forma
+  - `findNextUnlockedLesson` extraído de dentro do `AskCoachService` (Tarefa 14) pro módulo
+    `learning` (`next-lesson.util.ts`, agora com `lessonId` no retorno) — reusado por Ask Coach e
+    pela Recomendação adaptativa, sem duplicar a lógica de "primeira aula desbloqueada e pendente"
+  - `LearningRecommendation` (Prisma, migration `20260915160000_add_learning_recommendation`) —
+    1 linha por usuário, sempre sobrescrita quando a ação computada muda; preserva `dismissedAt`
+    quando a ação recomendada é a mesma de antes. Ganhou um campo `type` além do esboço original
+    de `docs/efootball-architecture.md` (só tinha `reason`/`lessonId`) — mesmo motivo da Tarefa 13
+    ter adicionado `onboardingCompletedAt` ao `UserLearningProfile`: torna a linha
+    auto-descritiva em vez de exigir comparar texto de `reason`
+  - `POST /recommendations/:id/dismiss` (novo, além do único endpoint listado no plano original)
+    — marca a recomendação atual como dispensada; a mesma ação computada não volta a aparecer
+    "não dispensada" até o estado subjacente realmente mudar (ex.: usuário finalmente adiciona um
+    jogador) — a cadeia de prioridade então recalcula uma ação diferente e `dismissedAt` é limpo
+  - 19 novos testes (`next-best-action.util.spec.ts`, `recommendations.service.spec.ts`,
+    `next-lesson.util.spec.ts`) — 90 suites na API (era 87/646)
+
+## [0.62.0] — 2026-09-15
+
+### Added
+- **Módulo eFootball — Tarefa 16 (Progresso).** `GET /progress/me` — agrega, num único snapshot,
+  métricas de todos os engines já implementados: Academia (nível, `onboardingCompletedAt` da
+  Tarefa 13, aulas concluídas/total e `%` em TODAS as trilhas do jogo, não só a do nível atual),
+  Meus Jogadores (jogadores no elenco, favoritos, builds salvas), Squad Builder (elencos salvos),
+  Economy Advisor (avaliações feitas, quantas vieram `RECOMMENDED`) e o mesmo resumo de Match
+  Analysis já usado na integração da Tarefa 15 (`totalAnalyzed`/`worstCategory`/`avgOverallScore`).
+  - `UserProgressSnapshot` (Prisma, migration `20260915140000_add_user_progress_snapshot`) — uma
+    linha por `(userId, gameId)`, sempre sobrescrita no cálculo mais recente (mesmo padrão do
+    `TacticalProfile`, Tactical Engine Fase 4: sem histórico de snapshots anteriores).
+    `formulaVersion` (`PROGRESS_FORMULA_VERSION`) versiona a fórmula de agregação, mesmo padrão
+    de `DECISION_SCORE_CONFIG_VERSION`/`PLAYER_BUILD_ENGINE_CONFIG_VERSION`
+  - `ProgressService` nunca recalcula nada dos motores — só conta/lê o que cada um já persistiu
+    (contagens diretas via Prisma + `LearningService.getProfile`/`ReportsService.getSummary`
+    reaproveitados), mesmo princípio de "camada fina de leitura" do `StrategicProfileBuilder`
+  - 5 novos testes (`progress.service.spec.ts`) — 87 suites na API (era 86/641)
+
+## [0.61.0] — 2026-09-15
+
+### Added
+- **Módulo eFootball — Tarefa 15 (integração com Match Analysis).** A recomendação de aula da
+  Academia (`LEARNING_RECOMMENDATION`, Ask Coach/Tarefa 14) passa a considerar a categoria de
+  erro mais frequente das partidas REAIS já analisadas pelo pipeline de vídeo existente
+  (`ReportsService.getSummary().worstCategory` — EA FC hoje, único jogo com análise de vídeo em
+  produção) antes de cair na próxima aula "em sequência" da trilha do nível atual.
+  - **Escopo deliberadamente limitado à agregação por categoria já existente**
+    (`attack`/`defense`/`passing`/`decision`) — nunca uma correlação fina (ex.: "zagueiro sai de
+    posição com frequência"), que exigiria detecção real de posição de jogador/bola. Essa fonte
+    não existe em nenhum lugar do projeto hoje (`docs/tactical-engine-current-state.md`,
+    `docs/efootball-architecture.md` risco 3) — reafirmado aqui, não resolvido
+  - `LearningService.getMatchInformedRecommendation()` (novo) + `match-analysis-recommendation.util.ts`
+    (mapa puro `attack→Finalização`, `defense→Defesa`, `passing→Passe`, `decision→Movimentação`)
+    — busca o módulo correspondente no catálogo da Academia (qualquer nível, não só o do perfil
+    do usuário) e recomenda sua primeira aula **só se já estiver desbloqueada e ainda não
+    concluída** — nunca fura a ordem sequencial de desbloqueio garantida pela Tarefa 12
+  - Sem partida analisada ainda (`worstCategory: null`), categoria sem módulo mapeado, módulo
+    inexistente pro jogo, ou aula bloqueada/já concluída: `null`, sem exceção — `AskCoachService`
+    cai automaticamente para o comportamento anterior (próxima aula da trilha do nível atual)
+  - 11 novos testes (`match-analysis-recommendation.util.spec.ts` + novos casos em
+    `learning.service.spec.ts` e `ask-coach.service.spec.ts`) — 86 suites na API (era 85/630)
+
+## [0.60.0] — 2026-09-15
+
+### Added
+- **Módulo eFootball — Tarefa 14 (Ask Coach / Intent Router).** `POST /ask-coach` — pergunta em
+  texto livre, classificada por um Intent Router 100% determinístico (`intent-router.ts`, busca de
+  palavra-chave sobre texto normalizado, sem IA na classificação) num dos 5 intents conhecidos, que
+  então chama o motor determinístico correspondente: `PLAYER_SEARCH` (Tarefa 3),
+  `BUILD_RECOMMENDATION` (Tarefa 5), `SQUAD_ADVICE` (Tarefa 9), `ECONOMY_ADVICE` (Tarefa 11),
+  `LEARNING_RECOMMENDATION` (Tarefa 12) — `UNKNOWN` para perguntas fora do vocabulário reconhecido.
+  - **Regra de custo/dados (Tarefa 20 adiantada aqui por necessidade):** só as 2 intents cujo
+    resultado é narrativo (`SQUAD_ADVICE`, `BUILD_RECOMMENDATION`) chamam IA generativa — e só pra
+    explicar em texto um resultado já calculado pelo motor, nunca pra recalcular ou inventar dado
+    de jogo. `PLAYER_SEARCH`/`ECONOMY_ADVICE`/`LEARNING_RECOMMENDATION` já têm resposta
+    determinística suficiente e nunca chamam IA; `UNKNOWN` responde com um texto fixo em vez de
+    deixar uma IA generativa "adivinhar" sobre mecânica de jogo sem fonte validada
+  - `EfootballCoachService` (Tarefa 10) ganhou `explainBuild()` — primeira narração de IA do
+    Player Build Engine (Tarefa 5; até aqui só `explanationData` estruturado existia, sem nenhum
+    consumidor de texto). Cascata Claude → GPT-4o → DeepSeek → Groq extraída para um método
+    privado `runCascade()` compartilhado com `explainSquad()` (refatoração sem mudança de
+    comportamento, coberta pelos testes existentes)
+  - Campos "slot" opcionais no corpo (`userSquadId`, `packId`, `userCoins`, `playerCardId`,
+    `level`, `availableProgressionPoints`, `strategy`) — preenchidos pelo frontend quando a
+    pergunta parte de uma tela específica (ex.: usuário pergunta "vale a pena?" já na tela de um
+    pack aberto), nunca inferidos a partir do texto da pergunta em si. Sem os slots necessários
+    pra uma intent, a resposta é uma pergunta de esclarecimento determinística (sem chamar o
+    motor nem a IA) em vez de adivinhar `packId`/`availableProgressionPoints`
+  - `SQUAD_ADVICE` sem `userSquadId` explícito usa o elenco padrão do usuário
+    (`isDefault: true`, senão o mais recente); sem nenhum elenco salvo, orienta a montar um no
+    Squad Builder em vez de chamar IA sem dado nenhum
+  - Build/Squad advice com IA indisponível (todos os provedores falharam) caem pra uma resposta
+    determinística construída com os mesmos fatos do motor — o endpoint nunca retorna vazio
+  - 25 novos testes (`intent-router.spec.ts`, `ask-coach.service.spec.ts`, 3 novos em
+    `efootball-coach.service.spec.ts` para `explainBuild`) — 85 suites na API (era 83/605)
+
+## [0.59.0] — 2026-09-15
+
+### Added
+- **Módulo eFootball — Tarefa 13 (Onboarding).** `POST /onboarding/efootball` — primeiro contato
+  do usuário com o módulo: registra o nível autodeclarado (mesmo enum `LearningLevel` do
+  `UserLearningProfile`, Tarefa 12) e objetivos opcionais, e já resolve a trilha inicial
+  correspondente (`LearningPath` para `(gameId eFootball, level)`) numa única chamada — evita o
+  cliente encadear `PATCH /learning/profile` + `GET /learning/paths`.
+  - `UserLearningProfile.onboardingCompletedAt` (schema + migration `20260915120000_add_onboarding_completed_at`)
+    — preenchido só na primeira vez; refazer o onboarding depois (usuário reavalia o próprio
+    nível) atualiza nível/objetivos sem perder a data original de conclusão
+  - `GamesService.findByProvider('EFOOTBALL')` (já existente desde a Tarefa 2) resolve o `Game`
+    internamente — o endpoint não recebe `gameId` do cliente, já que `/onboarding/efootball` é
+    específico do eFootball
+  - `GET /learning/profile` (Tarefa 12) passa a incluir `onboardingCompletedAt` também no valor
+    padrão (perfil ainda não criado) — frontend decide se mostra a tela de onboarding sem
+    endpoint novo
+  - Sem trilha cadastrada para o nível informado, `recommendedPath` volta `null` em vez de lançar
+    erro — o perfil ainda é salvo normalmente
+  - 4 novos testes (`onboarding.service.spec.ts`): trilha inicial correta por nível, data de
+    conclusão preservada ao refazer o onboarding, isolamento entre usuários, nível sem trilha
+    cadastrada
+  - 83 suites na API (era 82/601)
+
 ## [0.58.0] — 2026-09-14
 
 ### Added

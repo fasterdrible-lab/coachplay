@@ -7,6 +7,7 @@ describe('AdminService', () => {
     match: { count: jest.Mock };
     aIAnalysis: { aggregate: jest.Mock; findMany: jest.Mock };
     auditLog: { findMany: jest.Mock };
+    aiCallLog: { aggregate: jest.Mock; groupBy: jest.Mock; findMany: jest.Mock; count: jest.Mock };
   };
   let service: AdminService;
 
@@ -16,6 +17,7 @@ describe('AdminService', () => {
       match: { count: jest.fn() },
       aIAnalysis: { aggregate: jest.fn(), findMany: jest.fn() },
       auditLog: { findMany: jest.fn() },
+      aiCallLog: { aggregate: jest.fn(), groupBy: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     };
     service = new AdminService(prisma as unknown as PrismaService);
   });
@@ -98,6 +100,47 @@ describe('AdminService', () => {
       const result = await service.getUsage({ page: 1, limit: 20 });
 
       expect(result.data[0]).toMatchObject({ totalAnalyses: 0, totalCost: 0 });
+    });
+  });
+
+  describe('getEfootballAiUsage (Tarefa 21 — observabilidade)', () => {
+    it('agrega total, taxa de falha, custo/latência médios e quebra por feature', async () => {
+      prisma.aiCallLog.aggregate.mockResolvedValue({
+        _sum: { costEstimate: 1.5 },
+        _avg: { latencyMs: 800 },
+        _count: 10,
+      });
+      prisma.aiCallLog.count.mockResolvedValue(8); // sucessos
+      prisma.aiCallLog.groupBy.mockResolvedValue([
+        { feature: 'squad_coach', _sum: { costEstimate: 1.0 }, _avg: { latencyMs: 700 }, _count: 6 },
+        { feature: 'build_coach', _sum: { costEstimate: 0.5 }, _avg: { latencyMs: 1000 }, _count: 4 },
+      ]);
+      prisma.aiCallLog.findMany.mockResolvedValue([]);
+
+      const result = await service.getEfootballAiUsage();
+
+      expect(result.totalCalls).toBe(10);
+      expect(result.successCalls).toBe(8);
+      expect(result.failureRate).toBeCloseTo(0.2);
+      expect(result.totalCost).toBe(1.5);
+      expect(result.avgLatencyMs).toBe(800);
+      expect(result.byFeature).toEqual([
+        { feature: 'squad_coach', calls: 6, totalCost: 1.0, avgLatencyMs: 700 },
+        { feature: 'build_coach', calls: 4, totalCost: 0.5, avgLatencyMs: 1000 },
+      ]);
+    });
+
+    it('não divide por zero quando não há nenhuma chamada de IA registrada ainda', async () => {
+      prisma.aiCallLog.aggregate.mockResolvedValue({ _sum: { costEstimate: null }, _avg: { latencyMs: null }, _count: 0 });
+      prisma.aiCallLog.count.mockResolvedValue(0);
+      prisma.aiCallLog.groupBy.mockResolvedValue([]);
+      prisma.aiCallLog.findMany.mockResolvedValue([]);
+
+      const result = await service.getEfootballAiUsage();
+
+      expect(result.failureRate).toBe(0);
+      expect(result.totalCost).toBe(0);
+      expect(result.avgLatencyMs).toBe(0);
     });
   });
 });

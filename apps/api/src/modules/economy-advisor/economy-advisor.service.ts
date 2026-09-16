@@ -12,6 +12,17 @@ export class EconomyAdvisorService {
     private readonly squadBuilder: SquadBuilderService,
   ) {}
 
+  /** Leitura simples (Tarefa 18 — frontend): lista os packs disponíveis pro seletor de
+   * `POST /economy-advisor/evaluate`. Sem essa leitura o cliente não tem como descobrir um
+   * `packId` válido — nenhuma lógica do motor (Tarefa 11) aqui. */
+  async listPacks(gameId: string) {
+    return this.prisma.pack.findMany({
+      where: { gameId, active: true },
+      select: { id: true, name: true, cost: true, currency: true, oddsVerifiedAt: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async evaluate(dto: EvaluatePackDto, currentUser: AuthUser): Promise<EconomyAdvisorResult> {
     const pack = await this.prisma.pack.findUnique({
       where: { id: dto.packId },

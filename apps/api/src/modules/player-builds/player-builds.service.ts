@@ -3,10 +3,23 @@ import { PrismaService } from '../../shared/database/prisma.service';
 import { compareBuilds } from './build-comparator';
 import { BuildComparisonResult } from './build-comparator.types';
 import { CompareBuildsDto } from './dto/compare-builds.dto';
+import { GenerateBuildDto } from './dto/generate-build.dto';
+import { PlayerBuildEngineService } from '../player-build-engine/player-build-engine.service';
+import { PlayerBuildResult } from '../player-build-engine/player-build.types';
 
 @Injectable()
 export class PlayerBuildsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly playerBuildEngine: PlayerBuildEngineService,
+  ) {}
+
+  /** Pré-visualização (Tarefa 18 — frontend): roda o Player Build Engine (Tarefa 5) e devolve o
+   * resultado sem persistir nada. O usuário decide se salva via `POST /user-players/:id/builds`
+   * (Tarefa 8) — esse endpoint nunca escreve no banco. */
+  async generate(dto: GenerateBuildDto): Promise<PlayerBuildResult> {
+    return this.playerBuildEngine.generateBuild(dto);
+  }
 
   async compare(dto: CompareBuildsDto): Promise<BuildComparisonResult> {
     const card = await this.prisma.playerCard.findUnique({

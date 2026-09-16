@@ -109,17 +109,20 @@ export class SquadBuilderService {
       }
     }
 
-    return this.efootballCoach.explainSquad({
-      formationCode: result.formationCode,
-      startingXI: result.startingXI.map((s) => ({
-        slot: s.slot,
-        position: s.position,
-        playerName: nameById.get(s.userPlayerId) ?? 'Desconhecido',
-        overallBase: overallById.get(s.userPlayerId) ?? 0,
-      })),
-      weakPositions: result.weakPositions,
-      rosterCompositionByGroup,
-    });
+    return this.efootballCoach.explainSquad(
+      {
+        formationCode: result.formationCode,
+        startingXI: result.startingXI.map((s) => ({
+          slot: s.slot,
+          position: s.position,
+          playerName: nameById.get(s.userPlayerId) ?? 'Desconhecido',
+          overallBase: overallById.get(s.userPlayerId) ?? 0,
+        })),
+        weakPositions: result.weakPositions,
+        rosterCompositionByGroup,
+      },
+      currentUser.id,
+    );
   }
 
   /** Usado pelo Economy Advisor (Tarefa 11) como "needs" — nunca chama IA, só o motor da

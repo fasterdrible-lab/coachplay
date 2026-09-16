@@ -10,6 +10,8 @@ import {
   Sparkles,
   Coins,
   KeyRound,
+  Gauge,
+  ShieldAlert,
 } from 'lucide-react';
 import { api } from '../../../../lib/api';
 import { Button } from '../../../../components/ui/button';
@@ -39,6 +41,31 @@ interface OverviewData {
   ai: { totalAnalyses: number; totalCost: number; avgCostPerAnalysis: number };
 }
 
+interface EfootballAiUsage {
+  totalCalls: number;
+  successCalls: number;
+  failureRate: number;
+  totalCost: number;
+  avgLatencyMs: number;
+  byFeature: Array<{ feature: string; calls: number; totalCost: number; avgLatencyMs: number }>;
+  recentCalls: Array<{
+    id: string;
+    feature: string;
+    provider: string | null;
+    success: boolean;
+    costEstimate: number;
+    latencyMs: number;
+    errorMessage: string | null;
+    createdAt: string;
+    user: { name: string; email: string } | null;
+  }>;
+}
+
+const FEATURE_LABELS: Record<string, string> = {
+  squad_coach: 'Coach de Elenco',
+  build_coach: 'Coach de Build',
+};
+
 interface ProviderStatus {
   configured: boolean;
   source: 'painel' | 'variável de ambiente' | null;
@@ -65,6 +92,7 @@ function formatCost(value: number): string {
 export default function AdminUsagePage() {
   const [data, setData] = useState<UsageResponse | null>(null);
   const [overview, setOverview] = useState<OverviewData | null>(null);
+  const [efootballAiUsage, setEfootballAiUsage] = useState<EfootballAiUsage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
@@ -89,12 +117,14 @@ export default function AdminUsagePage() {
     Promise.allSettled([
       api.get<UsageResponse>(`/admin/usage?page=${page}&limit=15`),
       api.get<OverviewData>('/admin/overview'),
+      api.get<EfootballAiUsage>('/admin/efootball-ai-usage'),
     ])
-      .then(([usageRes, overviewRes]) => {
+      .then(([usageRes, overviewRes, efootballRes]) => {
         if (cancelled) return;
         if (usageRes.status === 'fulfilled') setData(usageRes.value);
         else setError('Não foi possível carregar o uso de IA.');
         if (overviewRes.status === 'fulfilled') setOverview(overviewRes.value);
+        if (efootballRes.status === 'fulfilled') setEfootballAiUsage(efootballRes.value);
       })
       .finally(() => { if (!cancelled) setIsLoading(false); });
 
@@ -358,6 +388,86 @@ export default function AdminUsagePage() {
               {formatCost(overview.ai.avgCostPerAnalysis)}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* eFootball — observabilidade de IA (Tarefa 21) */}
+      {efootballAiUsage && (
+        <div className="mb-6 rounded-xl border border-white/[0.08] bg-ink2/60 backdrop-blur-xl p-5">
+          <h2 className="mb-4 text-sm font-semibold text-white/80">eFootball — Custo de IA (Coach de Elenco/Build)</h2>
+
+          <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+              <div className="mb-1.5 flex items-center gap-2 text-xs text-white/45">
+                <Sparkles className="h-3.5 w-3.5" /> Chamadas
+              </div>
+              <p className="text-xl font-bold text-[#f8f8fc]">{efootballAiUsage.totalCalls}</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+              <div className="mb-1.5 flex items-center gap-2 text-xs text-white/45">
+                <Coins className="h-3.5 w-3.5" /> Custo total
+              </div>
+              <p className="text-xl font-bold text-[#f8f8fc]">{formatCost(efootballAiUsage.totalCost)}</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+              <div className="mb-1.5 flex items-center gap-2 text-xs text-white/45">
+                <Gauge className="h-3.5 w-3.5" /> Latência média
+              </div>
+              <p className="text-xl font-bold text-[#f8f8fc]">{Math.round(efootballAiUsage.avgLatencyMs)}ms</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+              <div className="mb-1.5 flex items-center gap-2 text-xs text-white/45">
+                <ShieldAlert className="h-3.5 w-3.5" /> Taxa de falha
+              </div>
+              <p className={cn('text-xl font-bold', efootballAiUsage.failureRate > 0.1 ? 'text-[#e2718a]' : 'text-[#f8f8fc]')}>
+                {Math.round(efootballAiUsage.failureRate * 100)}%
+              </p>
+            </div>
+          </div>
+
+          {efootballAiUsage.byFeature.length > 0 && (
+            <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {efootballAiUsage.byFeature.map((f) => (
+                <div key={f.feature} className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3">
+                  <p className="text-sm font-medium text-[#f8f8fc]">{FEATURE_LABELS[f.feature] ?? f.feature}</p>
+                  <p className="text-xs text-white/45">
+                    {f.calls} chamada(s) · {formatCost(f.totalCost)} · {Math.round(f.avgLatencyMs)}ms médio
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {efootballAiUsage.recentCalls.length === 0 ? (
+            <p className="text-sm text-white/45">Nenhuma chamada de IA registrada ainda.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-white/10">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/10 text-left text-xs text-white/45">
+                    <th className="px-4 py-2.5 font-medium">Usuário</th>
+                    <th className="px-4 py-2.5 font-medium">Feature</th>
+                    <th className="px-4 py-2.5 font-medium">Provedor</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Custo</th>
+                    <th className="px-4 py-2.5 font-medium text-right">Latência</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.06]">
+                  {efootballAiUsage.recentCalls.map((call) => (
+                    <tr key={call.id}>
+                      <td className="px-4 py-2.5 text-[#f8f8fc]/80">{call.user?.name ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-[#f8f8fc]/70">{FEATURE_LABELS[call.feature] ?? call.feature}</td>
+                      <td className="px-4 py-2.5 text-[#f8f8fc]/70">
+                        {call.success ? call.provider : <span className="text-[#e2718a]">falhou</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-[#f8f8fc]/80">{formatCost(call.costEstimate)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-[#f8f8fc]/45">{call.latencyMs}ms</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
